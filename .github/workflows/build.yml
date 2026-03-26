@@ -1,0 +1,77 @@
+name: Build Apk
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build, Sign & Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo $KEYSTORE_BASE64 | base64 --decode > app/release.jks
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: 🚀 Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Extract Version & Rename APK
+        id: rename_apk
+        run: |
+          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "Detected Version: $VERSION_NAME"
+          
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          NEW_APK_NAME="Magivant-DAC-$VERSION_NAME.apk"
+          
+          mv "$APK_PATH" "$NEW_APK_NAME"
+          
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+          echo "APK_FILE=$NEW_APK_NAME" >> $GITHUB_ENV
+
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_FILE }}
+          path: ${{ env.APK_FILE }}
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          name: Magivant DAC v${{ env.VERSION_NAME }}
+          body: |
+            Automated release build for **Magivant DAC v${{ env.VERSION_NAME }}**.
+            
+            **How to install:**
+            1. Download the `.apk` file from the **Assets** section below.
+            2. Install it on your Android device.
+            3. Connect your Leteciel DAC and grant USB access.
+          files: ${{ env.APK_FILE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
