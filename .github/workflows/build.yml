@@ -1,8 +1,6 @@
 name: Build Apk
 
 on:
-  push:
-    branches: [ "master" ]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +31,7 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: 🚀 Build Release APK
+      - name: Build Release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
