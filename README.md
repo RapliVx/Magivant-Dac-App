@@ -54,7 +54,7 @@ Here is the breakdown of the application flow:
 
 ## Local Build Instructions
 
-Follow these steps to set up the development environment and build **Magivant** on your local machine.
+Follow these steps to set up the development environment and build **Magivant-DAC** on your local machine.
 
 #### **1. Prerequisites**
 Before you begin, ensure you have the following installed:
