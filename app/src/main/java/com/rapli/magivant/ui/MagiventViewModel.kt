@@ -3,12 +3,12 @@ package com.rapli.magivant.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapli.magivant.usb.UsbDacManager
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 
 data class DacUiState(
@@ -24,7 +24,13 @@ data class DacUiState(
 class MagivantViewModel(private val usbManager: UsbDacManager) : ViewModel() {
     private val _uiState = MutableStateFlow(DacUiState())
     val uiState = _uiState.asStateFlow()
+
     private var pollingJob: Job? = null
+    private val usbMutex = Mutex()
+    private var isUserInteracting = false
+    private var interactionJob: Job? = null
+    private var volumeJob: Job? = null
+    private var balanceJob: Job? = null
 
     val appVolumeIntList = listOf(
         0xFF, 0xC8, 0xB4, 0xAA, 0xA0, 0x96, 0x8C, 0x82, 0x7A, 0x74,
@@ -36,13 +42,15 @@ class MagivantViewModel(private val usbManager: UsbDacManager) : ViewModel() {
     )
 
     fun onDeviceConnected() {
-        _uiState.value = _uiState.value.copy(isConnected = true)
+        _uiState.update { it.copy(isConnected = true) }
         viewModelScope.launch {
-            syncFirmware()
+            runWithLock { syncFirmware() }
             delay(100)
-            syncVolume()
+            runWithLock { syncVolume() }
             delay(100)
-            syncOtherInfo1()
+            runWithLock { syncOtherInfo1() }
+            delay(100)
+            runWithLock { syncOtherInfo2() }
             startPollingLoop()
         }
     }
@@ -56,60 +64,127 @@ class MagivantViewModel(private val usbManager: UsbDacManager) : ViewModel() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
             while (isActive) {
-                delay(500)
-                syncVolume()
-                delay(100)
-                syncOtherInfo1()
+                delay(1000)
+                if (!isUserInteracting && _uiState.value.isConnected) {
+                    runWithLock { syncVolume() }
+                    delay(100)
+                    runWithLock { syncOtherInfo1() }
+                    delay(100)
+                    runWithLock { syncOtherInfo2() } // Sync status Gain
+                }
             }
+        }
+    }
+
+    private suspend fun runWithLock(action: suspend () -> Unit) {
+        try {
+            usbMutex.withLock { action() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun markUserInteraction() {
+        isUserInteracting = true
+        interactionJob?.cancel()
+        interactionJob = viewModelScope.launch {
+            delay(1500)
+            isUserInteracting = false
         }
     }
 
     private suspend fun syncFirmware() {
         val data = usbManager.readData((-96).toByte()) ?: return
-        val fw = "${data[3].toInt() and 0xFF}.${data[4].toInt() and 0xFF}.${data[5].toInt() and 0xFF}"
-        _uiState.value = _uiState.value.copy(firmwareVersion = fw)
+        if (data.size >= 6) {
+            val fw = "${data[3].toInt() and 0xFF}.${data[4].toInt() and 0xFF}.${data[5].toInt() and 0xFF}"
+            _uiState.update { it.copy(firmwareVersion = fw) }
+        }
     }
 
     private suspend fun syncVolume() {
         val data = usbManager.readData((-94).toByte()) ?: return
-        val volIndex = appVolumeIntList.indexOf(data[4].toInt() and 0xFF).takeIf { it >= 0 } ?: 0
-        val left = data[5].toInt() and 0xFF
-        val right = data[6].toInt() and 0xFF
-        val balance = if (left > 0) left else if (right > 0) -right else 0
-        _uiState.value = _uiState.value.copy(volumeIndex = volIndex, balanceBaseValue = balance)
+        if (data.size >= 7) {
+            val volIndex = appVolumeIntList.indexOf(data[4].toInt() and 0xFF).takeIf { it >= 0 } ?: 0
+            val left = data[5].toInt() and 0xFF
+            val right = data[6].toInt() and 0xFF
+            val balance = if (left > 0) left else if (right > 0) -right else 0
+            _uiState.update { it.copy(volumeIndex = volIndex, balanceBaseValue = balance) }
+        }
     }
 
     private suspend fun syncOtherInfo1() {
         val data = usbManager.readData((-93).toByte()) ?: return
-        _uiState.value = _uiState.value.copy(
-            digitalFilterPos = data[3].toInt() and 0xFF,
-            isHighGain = (data[4].toInt() and 0xFF) == 1,
-            ledPos = data[5].toInt() and 0xFF
-        )
+        if (data.size >= 6) {
+            _uiState.update {
+                it.copy(
+                    digitalFilterPos = data[3].toInt() and 0xFF,
+                    ledPos = data[5].toInt() and 0xFF
+                )
+            }
+        }
+    }
+
+    private suspend fun syncOtherInfo2() {
+        val data = usbManager.readData((-92).toByte()) ?: return
+        if (data.size >= 5) {
+            _uiState.update {
+                it.copy(
+                    isHighGain = (data[4].toInt() and 0xFF) == 1
+                )
+            }
+        }
     }
 
     fun setVolume(index: Int) {
-        _uiState.value = _uiState.value.copy(volumeIndex = index)
-        viewModelScope.launch { usbManager.sendCommand(4, appVolumeIntList[index].toByte()) }
+        if (index !in appVolumeIntList.indices) return
+        markUserInteraction()
+        _uiState.update { it.copy(volumeIndex = index) }
+        volumeJob?.cancel()
+        volumeJob = viewModelScope.launch {
+            delay(50)
+            runWithLock {
+                usbManager.sendCommand(4, appVolumeIntList[index].toByte())
+            }
+        }
     }
 
     fun setBalance(balance: Int) {
-        _uiState.value = _uiState.value.copy(balanceBaseValue = balance)
-        val absVal = abs(balance).toByte()
-        viewModelScope.launch {
-            if (balance < 0) usbManager.sendCommand(5, 0, absVal)
-            else if (balance > 0) usbManager.sendCommand(5, absVal, 0)
-            else usbManager.sendCommand(5, 0, 0)
+        markUserInteraction()
+        _uiState.update { it.copy(balanceBaseValue = balance) }
+
+        balanceJob?.cancel()
+        balanceJob = viewModelScope.launch {
+            delay(50)
+            val absVal = abs(balance).toByte()
+            runWithLock {
+                if (balance < 0) usbManager.sendCommand(5, 0, absVal)
+                else if (balance > 0) usbManager.sendCommand(5, absVal, 0)
+                else usbManager.sendCommand(5, 0, 0)
+            }
         }
     }
 
     fun setGain(isHigh: Boolean) {
-        _uiState.value = _uiState.value.copy(isHighGain = isHigh)
+        markUserInteraction()
+        _uiState.update { it.copy(isHighGain = isHigh) }
         viewModelScope.launch {
-            usbManager.sendCommand(2, if (isHigh) 1 else 0)
+            runWithLock {
+                usbManager.sendCommand(9, if (isHigh) 1 else 0)
+            }
         }
     }
 
-    fun setDigitalFilter(pos: Int) = viewModelScope.launch { usbManager.sendCommand(1, pos.toByte()) }
-    fun setLed(pos: Int) = viewModelScope.launch { usbManager.sendCommand(6, pos.toByte()) }
+    fun setDigitalFilter(pos: Int) {
+        _uiState.update { it.copy(digitalFilterPos = pos) }
+        viewModelScope.launch {
+            runWithLock { usbManager.sendCommand(1, pos.toByte()) }
+        }
+    }
+
+    fun setLed(pos: Int) {
+        _uiState.update { it.copy(ledPos = pos) }
+        viewModelScope.launch {
+            runWithLock { usbManager.sendCommand(6, pos.toByte()) }
+        }
+    }
 }
