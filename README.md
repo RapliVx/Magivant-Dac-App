@@ -37,7 +37,7 @@ Here is the breakdown of the application flow:
 - **Dynamic Theming (Monet)**: The app interface and *Adaptive Icon* automatically adapt their colors to match your Android system wallpaper.
 
 
-# Magivant JSON Preset
+# Magivant JSON Preset Specification
 
 The Magivant preset system utilizes a structured JSON schema to synchronize software-defined parameters with the **Leteciel Magivant DAC** hardware registers. This document defines the data types, constraints, and functional implications of each field.
 
@@ -95,13 +95,13 @@ Defines the behavior of the device's status light:
 > **Note for Contributors:** *(Replace the image links below with actual screenshots of the app later)*
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/main/screenshoot/screenshot1.png" width="200" alt="SS1"/>
+  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot1.jpg" width="200" alt="SS1"/>
   &nbsp;&nbsp;
-  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/main/screenshoot/screenshot2.png" width="200" alt="SS2"/>
+  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot2.jpg" width="200" alt="SS2"/>
   &nbsp;&nbsp;
-  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/main/screenshoot/screenshot3.png" width="200" alt="SS3"/>
+  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot3.jpg" width="200" alt="SS3"/>
   &nbsp;&nbsp;
-  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/main/screenshoot/screenshot4.png" width="200" alt="SS4"/>
+  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot4.jpg" width="200" alt="SS4"/>
 </div>
 
 ---
