@@ -102,6 +102,7 @@ Defines the behavior of the device's status light:
   <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot3.jpg" width="200" alt="SS3"/>
   &nbsp;&nbsp;
   <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot4.jpg" width="200" alt="SS4"/>
+  <img src="https://raw.githubusercontent.com/RapliVx/Magivant-Dac-App/master/screenshoot/screenshoot5.jpg" width="200" alt="SS5"/>
 </div>
 
 ---
