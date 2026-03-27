@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> checkUsbDevice()
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
-                    usbDacManager.targetDevice = null
+                    usbDacManager.closeConnection()
                     viewModel.onDeviceDisconnected()
                 }
             }
@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
 
     private fun connectToDevice(device: UsbDevice) {
         usbDacManager.targetDevice = device
+        usbDacManager.openConnection()
         viewModel.onDeviceConnected()
     }
 
@@ -146,5 +147,6 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             // Safe unregister
         }
+        usbDacManager.closeConnection()
     }
 }
