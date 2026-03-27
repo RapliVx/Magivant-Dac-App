@@ -1,5 +1,7 @@
 package com.rapli.magivant.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,9 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.SnippetFolder
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,10 +29,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rapli.magivant.R
+import com.rapli.magivant.ui.components.NewPresetInputDialog
+import com.rapli.magivant.ui.components.PresetListDialog
 import kotlin.math.abs
 
 enum class SheetType { NONE, FILTER }
@@ -37,10 +44,32 @@ enum class SheetType { NONE, FILTER }
 @Composable
 fun MagivantScreen(viewModel: MagivantViewModel) {
     val uiState by viewModel.uiState.collectAsState()
+    val presetList by viewModel.presets.collectAsState()
+
     val scrollState = rememberScrollState()
     var activeSheet by remember { mutableStateOf(SheetType.NONE) }
 
+    var showPresetListDialog by remember { mutableStateOf(false) }
+    var showNewPresetDialog by remember { mutableStateOf(false) }
+    var presetToExport by remember { mutableStateOf<DacPreset?>(null) }
+
     val context = LocalContext.current
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { viewModel.exportPresetToUri(context, it, presetToExport) }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            viewModel.importPresetFromUri(context, it)
+            showPresetListDialog = true
+        }
+    }
+
     val appVersion = remember(context) {
         try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -56,15 +85,26 @@ fun MagivantScreen(viewModel: MagivantViewModel) {
                 title = {
                     Column {
                         Text(
-                            "Magivant",
+                            text = stringResource(id = R.string.app_name),
                             fontWeight = FontWeight.ExtraBold,
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            "Version $appVersion",
+                            text = "Version $appVersion",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                },
+                actions = {
+                    if (uiState.isConnected) {
+                        IconButton(onClick = { showPresetListDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.SnippetFolder,
+                                contentDescription = "Presets",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -84,6 +124,8 @@ fun MagivantScreen(viewModel: MagivantViewModel) {
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
             ElevatedCard(
                 shape = RoundedCornerShape(32.dp),
                 modifier = Modifier
@@ -276,7 +318,7 @@ fun MagivantScreen(viewModel: MagivantViewModel) {
                     val currentFilterName = filterList.getOrElse(uiState.digitalFilterPos) { "Unknown" }
 
                     Box(modifier = Modifier.padding(8.dp)) {
-                        PremiumSelectorItem(
+                        ConfigSelectorItem(
                             icon = Icons.Rounded.FilterList,
                             label = "Digital Filter",
                             currentValue = currentFilterName,
@@ -298,72 +340,138 @@ fun MagivantScreen(viewModel: MagivantViewModel) {
                         )
                     }
                 }
+            } else {
+                Spacer(modifier = Modifier.height(32.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Usb,
+                        contentDescription = "USB Disconnected",
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Device Not Found",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Please connect your Leteciel Magivant DAC\nvia USB to access hardware settings.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-    }
 
-    if (activeSheet == SheetType.FILTER) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        if (activeSheet == SheetType.FILTER) {
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-        ModalBottomSheet(
-            onDismissRequest = { activeSheet = SheetType.NONE },
-            sheetState = sheetState,
-            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ) {
-            Column(modifier = Modifier.padding(bottom = 40.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Rounded.FilterList, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Select Digital Filter", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                }
-                HorizontalDivider()
+            ModalBottomSheet(
+                onDismissRequest = { activeSheet = SheetType.NONE },
+                sheetState = sheetState,
+                shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Column(modifier = Modifier.padding(bottom = 40.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.FilterList, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Select Digital Filter", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider()
 
-                val filters = listOf(
-                    "Fast roll-off Low latency",
-                    "Fast roll-off Phase-compensated",
-                    "Slow roll-off Low latency",
-                    "Slow roll-off Phase-compensated",
-                    "Non over-sampling"
-                )
+                    val filters = listOf(
+                        "Fast roll-off Low latency",
+                        "Fast roll-off Phase-compensated",
+                        "Slow roll-off Low latency",
+                        "Slow roll-off Phase-compensated",
+                        "Non over-sampling"
+                    )
 
-                LazyColumn {
-                    itemsIndexed(filters) { i, name ->
-                        val isSelected = i == uiState.digitalFilterPos
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    name,
-                                    fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if(isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    LazyColumn {
+                        itemsIndexed(filters) { i, name ->
+                            val isSelected = i == uiState.digitalFilterPos
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        name,
+                                        fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if(isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                leadingContent = {
+                                    if (isSelected) Icon(Icons.Rounded.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
+                                    else Spacer(Modifier.size(24.dp))
+                                },
+                                modifier = Modifier.clickable {
+                                    viewModel.setDigitalFilter(i)
+                                    activeSheet = SheetType.NONE
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = if(isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                                 )
-                            },
-                            leadingContent = {
-                                if (isSelected) Icon(Icons.Rounded.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
-                                else Spacer(Modifier.size(24.dp))
-                            },
-                            modifier = Modifier.clickable {
-                                viewModel.setDigitalFilter(i)
-                                activeSheet = SheetType.NONE
-                            },
-                            colors = ListItemDefaults.colors(
-                                containerColor = if(isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                             )
-                        )
+                        }
                     }
                 }
             }
+        }
+
+        if (showPresetListDialog && uiState.isConnected) {
+            PresetListDialog(
+                presetList = presetList,
+                onDismiss = { showPresetListDialog = false },
+                onPresetSelected = { preset ->
+                    viewModel.applyPreset(preset)
+                    showPresetListDialog = false
+                },
+                onNewClicked = {
+                    showPresetListDialog = false
+                    showNewPresetDialog = true
+                },
+                onImportClicked = {
+                    showPresetListDialog = false
+                    importLauncher.launch(arrayOf("application/json", "*/*"))
+                },
+                onExportClicked = { preset ->
+                    showPresetListDialog = false
+                    presetToExport = preset
+                    val fileName = preset?.let { "${it.name}.json" } ?: "Magivant_Config.json"
+                    exportLauncher.launch(fileName)
+                },
+                onDeleteClicked = { presets ->
+                    viewModel.deletePresets(presets)
+                }
+            )
+        }
+
+        if (showNewPresetDialog && uiState.isConnected) {
+            NewPresetInputDialog(
+                onDismiss = { showNewPresetDialog = false },
+                onSave = { newName ->
+                    viewModel.saveCurrentStateAsPreset(newName)
+                    showNewPresetDialog = false
+                    showPresetListDialog = true
+                }
+            )
         }
     }
 }
 
 @Composable
-fun PremiumSelectorItem(icon: ImageVector, label: String, currentValue: String, onClick: () -> Unit) {
+fun ConfigSelectorItem(icon: ImageVector, label: String, currentValue: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -404,7 +512,7 @@ fun LEDDropdownSelector(options: List<String>, selectedPos: Int, onSelected: (In
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 .clip(RoundedCornerShape(16.dp))
                 .padding(vertical = 12.dp, horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
