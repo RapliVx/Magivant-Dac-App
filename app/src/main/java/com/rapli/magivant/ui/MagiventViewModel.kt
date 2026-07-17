@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapli.magivant.usb.UsbDacManager
+import com.rapli.magivant.usb.DndManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,12 +23,14 @@ data class DacUiState(
     val balanceBaseValue: Int = 0,
     val isHighGain: Boolean = false,
     val digitalFilterPos: Int = 0,
-    val ledPos: Int = 0
+    val ledPos: Int = 0,
+    val isDndEnabled: Boolean = false
 )
 
 class MagivantViewModel(
     private val usbManager: UsbDacManager,
-    private val presetManager: PresetManager
+    private val presetManager: PresetManager,
+    private val dndManager: DndManager
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DacUiState())
     val uiState = _uiState.asStateFlow()
@@ -55,6 +58,11 @@ class MagivantViewModel(
 
     fun onDeviceConnected() {
         _uiState.value = _uiState.value.copy(isConnected = true)
+
+        if (_uiState.value.isDndEnabled) {
+            dndManager.setDndActive(true)
+        }
+
         viewModelScope.launch {
             syncFirmware()
             delay(100)
@@ -67,7 +75,23 @@ class MagivantViewModel(
 
     fun onDeviceDisconnected() {
         pollingJob?.cancel()
-        _uiState.value = DacUiState(isConnected = false)
+
+        _uiState.value = DacUiState(
+            isConnected = false,
+            isDndEnabled = _uiState.value.isDndEnabled
+        )
+
+        dndManager.setDndActive(false)
+    }
+
+    fun toggleDndMode(enabled: Boolean) {
+        if (enabled && !dndManager.hasDndPermission()) return
+
+        _uiState.value = _uiState.value.copy(isDndEnabled = enabled)
+
+        if (_uiState.value.isConnected) {
+            dndManager.setDndActive(enabled)
+        }
     }
 
     private fun startPollingLoop() {

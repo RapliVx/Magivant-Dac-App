@@ -1,5 +1,9 @@
 package com.rapli.magivant.ui
 
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -18,6 +22,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,6 +59,10 @@ fun MagivantScreen(viewModel: MagivantViewModel) {
     var presetToExport by remember { mutableStateOf<DacPreset?>(null) }
 
     val context = LocalContext.current
+
+    val notificationManager = remember {
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -296,6 +305,61 @@ fun MagivantScreen(viewModel: MagivantViewModel) {
                                     checkedTrackColor = MaterialTheme.colorScheme.onError,
                                     uncheckedThumbColor = MaterialTheme.colorScheme.primary,
                                     uncheckedTrackColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
+
+                ElevatedCard(
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = if (uiState.isDndEnabled) MaterialTheme.colorScheme.tertiaryContainer
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                "Do Not Disturb Mode",
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isDndEnabled) MaterialTheme.colorScheme.onTertiaryContainer
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        supportingContent = {
+                            Text(
+                                if (uiState.isDndEnabled) "Notifications muted."
+                                else "Block OS sounds during playback",
+                                color = if (uiState.isDndEnabled) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        leadingContent = {
+                            Icon(
+                                imageVector = Icons.Rounded.NotificationsOff,
+                                contentDescription = null,
+                                tint = if (uiState.isDndEnabled) MaterialTheme.colorScheme.onTertiaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = uiState.isDndEnabled,
+                                onCheckedChange = { isChecked ->
+                                    if (isChecked && !notificationManager.isNotificationPolicyAccessGranted) {
+                                        val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                                        context.startActivity(intent)
+                                    } else {
+                                        viewModel.toggleDndMode(isChecked)
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.tertiary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.onTertiary,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
                             )
                         },
