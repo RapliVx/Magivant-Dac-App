@@ -23,6 +23,7 @@ import com.rapli.magivant.ui.MagivantScreen
 import com.rapli.magivant.ui.MagivantViewModel
 import com.rapli.magivant.ui.PresetManager
 import com.rapli.magivant.usb.UsbDacManager
+import com.rapli.magivant.usb.DndManager
 
 class MainActivity : ComponentActivity() {
 
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var usbManager: UsbManager
     private lateinit var usbDacManager: UsbDacManager
     private lateinit var presetManager: PresetManager
+    private lateinit var dndManager: DndManager
     private lateinit var viewModel: MagivantViewModel
 
     private val usbReceiver = object : BroadcastReceiver() {
@@ -66,7 +68,10 @@ class MainActivity : ComponentActivity() {
         usbDacManager = UsbDacManager(usbManager)
 
         presetManager = PresetManager(applicationContext)
-        viewModel = MagivantViewModel(usbDacManager, presetManager)
+
+        dndManager = DndManager(applicationContext)
+
+        viewModel = MagivantViewModel(usbDacManager, presetManager, dndManager)
 
         val filter = IntentFilter().apply {
             addAction(ACTION_USB_PERMISSION)
