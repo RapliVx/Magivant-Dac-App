@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
         dndManager = DndManager(applicationContext)
 
-        viewModel = MagivantViewModel(usbDacManager, presetManager, dndManager)
+        viewModel = MagivantViewModel(application, usbDacManager, presetManager, dndManager)
 
         val filter = IntentFilter().apply {
             addAction(ACTION_USB_PERMISSION)

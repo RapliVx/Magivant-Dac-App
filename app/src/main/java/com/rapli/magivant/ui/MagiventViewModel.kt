@@ -1,9 +1,11 @@
 package com.rapli.magivant.ui
 
+import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.OpenableColumns
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapli.magivant.usb.UsbDacManager
 import com.rapli.magivant.usb.DndManager
@@ -28,16 +30,20 @@ data class DacUiState(
 )
 
 class MagivantViewModel(
+    application: Application, 
     private val usbManager: UsbDacManager,
     private val presetManager: PresetManager,
     private val dndManager: DndManager
-) : ViewModel() {
+) : AndroidViewModel(application) {
+
     private val _uiState = MutableStateFlow(DacUiState())
     val uiState = _uiState.asStateFlow()
     private val _presets = MutableStateFlow<List<DacPreset>>(emptyList())
     val presets = _presets.asStateFlow()
 
     private var pollingJob: Job? = null
+
+    private val prefs: SharedPreferences = application.getSharedPreferences("MagivantSettings", Context.MODE_PRIVATE)
 
     val appVolumeIntList = listOf(
         0xFF, 0xC8, 0xB4, 0xAA, 0xA0, 0x96, 0x8C, 0x82, 0x7A, 0x74,
@@ -50,6 +56,20 @@ class MagivantViewModel(
 
     init {
         refreshPresets()
+        
+        // Restore user preference for auto-DND upon connection
+        val savedDndState = prefs.getBoolean("dnd_enabled", false)
+        _uiState.value = _uiState.value.copy(isDndEnabled = savedDndState)
+    }
+
+    fun syncDndState() {
+        if (dndManager.hasDndPermission()) {
+            val systemState = dndManager.isDndActive()
+            if (_uiState.value.isDndEnabled != systemState) {
+                _uiState.value = _uiState.value.copy(isDndEnabled = systemState)
+                prefs.edit().putBoolean("dnd_enabled", systemState).apply()
+            }
+        }
     }
 
     private fun refreshPresets() {
@@ -59,8 +79,10 @@ class MagivantViewModel(
     fun onDeviceConnected() {
         _uiState.value = _uiState.value.copy(isConnected = true)
 
+        // Automatically apply DND state if it was left enabled
         if (_uiState.value.isDndEnabled) {
             dndManager.setDndActive(true)
+            syncDndState()
         }
 
         viewModelScope.launch {
@@ -76,21 +98,28 @@ class MagivantViewModel(
     fun onDeviceDisconnected() {
         pollingJob?.cancel()
 
+        // Preserve the toggle state in the UI even when the DAC is disconnected
         _uiState.value = DacUiState(
             isConnected = false,
             isDndEnabled = _uiState.value.isDndEnabled
         )
 
+        // Disable OS notification filter to restore normal sounds
         dndManager.setDndActive(false)
     }
 
     fun toggleDndMode(enabled: Boolean) {
         if (enabled && !dndManager.hasDndPermission()) return
 
-        _uiState.value = _uiState.value.copy(isDndEnabled = enabled)
-
+        // Update preferences and system state if connected
         if (_uiState.value.isConnected) {
             dndManager.setDndActive(enabled)
+            // Sync state to ensure the UI reflects the actual system state
+            syncDndState()
+        } else {
+            // If not connected, only save the auto-DND preference
+            _uiState.value = _uiState.value.copy(isDndEnabled = enabled)
+            prefs.edit().putBoolean("dnd_enabled", enabled).apply()
         }
     }
 
