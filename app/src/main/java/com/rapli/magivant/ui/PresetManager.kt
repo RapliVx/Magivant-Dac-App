@@ -45,12 +45,15 @@ class PresetManager(context: Context) {
         } catch (e: Exception) { e.printStackTrace() }
     }
 
-    fun exportToUri(context: Context, uri: Uri, preset: DacPreset) {
-        try {
+    fun exportToUri(context: Context, uri: Uri, preset: DacPreset): Boolean {
+        return try {
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 outputStream.write(gson.toJson(preset).toByteArray())
-            }
-        } catch (e: Exception) { e.printStackTrace() }
+            } != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     private fun getFileNameFromUri(context: Context, uri: Uri): String {

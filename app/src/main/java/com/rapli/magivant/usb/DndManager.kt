@@ -15,7 +15,7 @@ class DndManager(context: Context) {
         return notificationManager.isNotificationPolicyAccessGranted
     }
 
-    fun requestDndPermission(context: Context) {
+    fun requestDndPermission(context: Context = appContext) {
         val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }

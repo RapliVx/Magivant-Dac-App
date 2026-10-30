@@ -11,19 +11,24 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.core.content.ContextCompat
 import com.rapli.magivant.ui.MagivantScreen
 import com.rapli.magivant.ui.MagivantViewModel
 import com.rapli.magivant.ui.PresetManager
-import com.rapli.magivant.usb.UsbDacManager
+import com.rapli.magivant.ui.theme.MAGIVANTDACTheme
+import com.rapli.magivant.ui.theme.ThemeController
 import com.rapli.magivant.usb.DndManager
+import com.rapli.magivant.usb.UsbDacManager
 
 class MainActivity : ComponentActivity() {
 
@@ -61,16 +66,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
         usbDacManager = UsbDacManager(usbManager)
-
         presetManager = PresetManager(applicationContext)
-
         dndManager = DndManager(applicationContext)
-
         viewModel = MagivantViewModel(application, usbDacManager, presetManager, dndManager)
 
         val filter = IntentFilter().apply {
@@ -90,21 +94,41 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            val isDarkTheme = isSystemInDarkTheme()
-
-            val supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
-            val colorScheme = when {
-                supportsDynamicColor && isDarkTheme -> dynamicDarkColorScheme(context)
-                supportsDynamicColor && !isDarkTheme -> dynamicLightColorScheme(context)
-                isDarkTheme -> darkColorScheme()
-                else -> lightColorScheme()
+            var appSettings by remember {
+                mutableStateOf(ThemeController.getAppSettings(context))
+            }
+            val density = LocalDensity.current
+            val customDensity = remember(density, appSettings.dpiScale) {
+                Density(density.density * appSettings.dpiScale, density.fontScale)
             }
 
-            MaterialTheme(colorScheme = colorScheme) {
-                MagivantScreen(viewModel = viewModel)
+            CompositionLocalProvider(LocalDensity provides customDensity) {
+                MAGIVANTDACTheme(appSettings = appSettings) {
+                    MagivantScreen(
+                        viewModel = viewModel,
+                        appSettings = appSettings,
+                        onUpdateAppSettings = { updated ->
+                            appSettings = updated
+                        },
+                        onCheckDndPermission = { enable ->
+                            if (enable && !dndManager.hasDndPermission()) {
+                                dndManager.requestDndPermission()
+                            } else {
+                                viewModel.toggleDndMode(enable)
+                            }
+                        },
+                        onScanUsb = {
+                            checkUsbDevice()
+                        }
+                    )
+                }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.syncDndState()
     }
 
     private fun checkUsbDevice() {
@@ -145,16 +169,16 @@ class MainActivity : ComponentActivity() {
 
     private fun connectToDevice(device: UsbDevice) {
         usbDacManager.targetDevice = device
-        usbDacManager.openConnection()
-        viewModel.onDeviceConnected()
+        if (usbDacManager.openConnection()) {
+            viewModel.onDeviceConnected()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         try {
             unregisterReceiver(usbReceiver)
-        } catch (e: Exception) {
-            // Safe unregister
+        } catch (_: Exception) {
         }
         usbDacManager.closeConnection()
     }
