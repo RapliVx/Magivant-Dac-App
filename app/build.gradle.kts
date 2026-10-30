@@ -12,8 +12,8 @@ android {
         applicationId = "com.rapli.magivant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.0-Expressive"
+        versionCode = 4
+        versionName = "3.1-Expressive"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
