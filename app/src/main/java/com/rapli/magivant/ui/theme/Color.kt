@@ -2,12 +2,6 @@ package com.rapli.magivant.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val PRIMARY = Color(0xFF9A351E)
-val PRIMARY_LIGHT = Color(0xFF8F4A4D)
-val SECONDARY_LIGHT = Color(0xFF775656)
-
-val AMOLED_BLACK = Color(0xFF000000)
-
 val Red = Color(0xFFF44336)
 val Pink = Color(0xFFE91E63)
 val Purple = Color(0xFF9C27B0)
@@ -30,19 +24,19 @@ data class KeyColorOption(
 )
 
 val keyColorOptions = listOf(
-    KeyColorOption("Crimson Red", Red),
-    KeyColorOption("Rose Pink", Pink),
+    KeyColorOption("Red", Red),
+    KeyColorOption("Pink", Pink),
     KeyColorOption("Sakura", Sakura),
-    KeyColorOption("Amethyst Purple", Purple),
-    KeyColorOption("Deep Violet", DeepPurple),
-    KeyColorOption("Royal Indigo", Indigo),
-    KeyColorOption("Ocean Blue", Blue),
-    KeyColorOption("Electric Cyan", Cyan),
-    KeyColorOption("Emerald Teal", Teal),
-    KeyColorOption("Forest Green", Green),
-    KeyColorOption("Solar Yellow", Yellow),
-    KeyColorOption("Warm Amber", Amber),
-    KeyColorOption("Sunset Orange", Orange),
-    KeyColorOption("Copper Brown", Brown),
-    KeyColorOption("Slate Grey", BlueGrey)
+    KeyColorOption("Purple", Purple),
+    KeyColorOption("Deep Purple", DeepPurple),
+    KeyColorOption("Indigo", Indigo),
+    KeyColorOption("Blue", Blue),
+    KeyColorOption("Cyan", Cyan),
+    KeyColorOption("Teal", Teal),
+    KeyColorOption("Green", Green),
+    KeyColorOption("Yellow", Yellow),
+    KeyColorOption("Amber", Amber),
+    KeyColorOption("Orange", Orange),
+    KeyColorOption("Brown", Brown),
+    KeyColorOption("Blue Grey", BlueGrey)
 )

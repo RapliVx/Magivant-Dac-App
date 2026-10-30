@@ -25,7 +25,7 @@ import androidx.compose.ui.window.DialogProperties
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ExpressiveLoadingDialog(
-    message: String = "Syncing CS43198 registers..."
+    message: String = "Syncing..."
 ) {
     Dialog(
         onDismissRequest = {},

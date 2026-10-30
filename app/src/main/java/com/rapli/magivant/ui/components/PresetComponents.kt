@@ -2,7 +2,6 @@ package com.rapli.magivant.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,7 +35,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +72,7 @@ fun MagivantPresetScreen(
     onDeleteClicked: (List<DacPreset>) -> Unit,
     onSetStartupPreset: (String) -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     var selectedItems by remember(presetList) { mutableStateOf(setOf<DacPreset>()) }
     val isSelectionMode = selectedItems.isNotEmpty()
 
@@ -117,9 +116,9 @@ fun MagivantPresetScreen(
                 contentPadding = PaddingValues(bottom = bottomInnerPadding + 24.dp),
                 header = {
                     Text(
-                        text = "Saved CS43198 Profiles (${presetList.size})",
+                        text = "Saved Presets (${presetList.size})",
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = cs.primary,
                         modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
                     )
                 }
@@ -147,7 +146,7 @@ fun MagivantPresetScreen(
                         Icon(
                             imageVector = if (isActive) Icons.Filled.CheckCircle else Icons.Outlined.Tune,
                             contentDescription = preset.name,
-                            tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (isActive) cs.primary else cs.onSurfaceVariant
                         )
                     },
                     headlineContent = {
@@ -159,6 +158,7 @@ fun MagivantPresetScreen(
                                 text = preset.name,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                                color = cs.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
@@ -166,12 +166,12 @@ fun MagivantPresetScreen(
                             if (isStartup) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                    color = cs.secondaryContainer
                                 ) {
                                     Text(
                                         text = "Auto-Start",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        color = cs.onSecondaryContainer,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -183,12 +183,12 @@ fun MagivantPresetScreen(
                             Text(
                                 text = "Vol ${preset.volumeIndex}/60 ($dbText) • $gainText",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = cs.onSurfaceVariant
                             )
                             Text(
                                 text = "$filterText • Balance ${Cs43198Spec.formatBalanceDb(preset.balanceBaseValue)}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = cs.onSurfaceVariant
                             )
                         }
                     },
@@ -212,7 +212,7 @@ fun MagivantPresetScreen(
                                     Icon(
                                         imageVector = Icons.Filled.FileUpload,
                                         contentDescription = "Export ${preset.name}",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = cs.onSurfaceVariant
                                     )
                                 }
                                 FilledTonalButton(
@@ -245,11 +245,13 @@ private fun PresetActionHeader(
     onImportClicked: () -> Unit,
     onExportCurrentClicked: () -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+            containerColor = expressiveSurfaceColor(),
+            contentColor = cs.onSurface
         )
     ) {
         Column(
@@ -267,10 +269,11 @@ private fun PresetActionHeader(
                     Text(
                         text = "$selectedCount Selected",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = cs.onSurface
                     )
                     TextButton(onClick = onClearSelection) {
-                        Text("Cancel")
+                        Text("Cancel", color = cs.primary)
                     }
                 }
                 Row(
@@ -308,14 +311,15 @@ private fun PresetActionHeader(
                 val currentDb = Cs43198Spec.formatDbFs(uiState.rawVolumeReg)
                 val currentGain = if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
                 Text(
-                    text = "Current Hardware Profile",
+                    text = "Current Settings",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = cs.onSurface
                 )
                 Text(
                     text = "Vol ${uiState.volumeIndex}/60 ($currentDb) • $currentGain • ${filterShortLabels.getOrElse(uiState.digitalFilterPos) { "Filter 0" }}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = cs.onSurfaceVariant
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -331,7 +335,7 @@ private fun PresetActionHeader(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Profile")
+                        Text("Save Preset")
                     }
                     FilledTonalButton(
                         onClick = onImportClicked
@@ -360,11 +364,13 @@ private fun EmptyPresetStateCard(
     onNewClicked: () -> Unit,
     onImportClicked: () -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+            containerColor = expressiveSurfaceColor(),
+            contentColor = cs.onSurface
         )
     ) {
         Column(
@@ -377,18 +383,19 @@ private fun EmptyPresetStateCard(
             Icon(
                 imageVector = Icons.Outlined.GraphicEq,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = cs.primary,
                 modifier = Modifier.size(44.dp)
             )
             Text(
-                text = "No Saved Presets Yet",
+                text = "No Saved Presets",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = cs.onSurface
             )
             Text(
-                text = "Save your current CS43198 volume, channel balance, analog gain, and digital filter state as a reusable profile, or import an existing JSON preset.",
+                text = "Save your current volume, balance, gain, and filter settings, or import a JSON file.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = cs.onSurfaceVariant
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -409,17 +416,21 @@ fun NewPresetInputDialog(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     var presetName by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save Hardware Profile") },
+        containerColor = cs.surfaceContainerHigh,
+        titleContentColor = cs.onSurface,
+        textContentColor = cs.onSurfaceVariant,
+        title = { Text("Save Preset", color = cs.onSurface) },
         text = {
             OutlinedTextField(
                 value = presetName,
                 onValueChange = { presetName = it },
-                label = { Text("Profile Name") },
-                placeholder = { Text("e.g. IEM Low Gain Reference") },
+                label = { Text("Preset Name") },
+                placeholder = { Text("e.g. IEM Low Gain") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -431,12 +442,12 @@ fun NewPresetInputDialog(
                 },
                 enabled = presetName.isNotBlank()
             ) {
-                Text("Save Profile")
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = cs.primary)
             }
         }
     )

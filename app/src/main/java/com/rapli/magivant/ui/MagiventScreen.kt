@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -50,7 +51,6 @@ import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.UsbOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -64,7 +64,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -98,8 +97,8 @@ import com.rapli.magivant.ui.components.MagivantBottomBar
 import com.rapli.magivant.ui.components.MagivantPresetScreen
 import com.rapli.magivant.ui.components.MagivantTab
 import com.rapli.magivant.ui.components.NewPresetInputDialog
+import com.rapli.magivant.ui.components.expressiveSurfaceColor
 import com.rapli.magivant.ui.theme.AppSettings
-import com.rapli.magivant.ui.theme.ColorMode
 import com.rapli.magivant.usb.Cs43198Spec
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -113,23 +112,23 @@ private val cs43198FilterTitles = listOf(
 )
 
 private val cs43198FilterDescriptions = listOf(
-    "Minimum phase filter with zero pre-ringing and tight transient attack",
-    "Linear phase filter preserving exact time alignment and studio imaging",
-    "Minimum phase with gentle ultrasonic attenuation and natural decay",
-    "Linear phase with smooth high-frequency roll-off and wide soundstage",
-    "Bypasses digital interpolation filter for unsmoothed R2R-style transients"
+    "Minimum phase, sharp stopband attenuation, no pre-ringing",
+    "Linear phase, sharp stopband attenuation, symmetric impulse",
+    "Minimum phase, gradual stopband roll-off, low group delay",
+    "Linear phase, gradual stopband roll-off, symmetric impulse",
+    "Emulates non-oversampling response with minimal digital filtering"
 )
 
 private val ledModeTitles = listOf(
-    "Follow Sample Rate & Playback",
-    "Always Off (Stealth Mode)",
+    "Follow Sample Rate",
+    "Always Off",
     "Always Red"
 )
 
 private val ledModeDescriptions = listOf(
-    "Changes chassis LED color dynamically based on active PCM or DSD rate",
-    "Turns off chassis LED completely for dark-room listening",
-    "Keeps the chassis indicator illuminated in solid red"
+    "Indicator color follows active PCM or DSD sample rate",
+    "Turns off the indicator LED",
+    "Keeps the indicator LED solid red"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,6 +144,7 @@ fun MagivantScreen(
     val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     val state by viewModel.uiState.collectAsState()
     val presetList by viewModel.presets.collectAsState()
+    val cs = MaterialTheme.colorScheme
 
     var currentTab by rememberSaveable { mutableStateOf(MagivantTab.HOME) }
     var showBottomBar by remember { mutableStateOf(true) }
@@ -184,7 +184,7 @@ fun MagivantScreen(
 
     if (state.isSyncing) {
         ExpressiveLoadingDialog(
-            message = state.syncMessage.ifEmpty { "Syncing CS43198 registers..." }
+            message = state.syncMessage.ifEmpty { "Syncing..." }
         )
     }
 
@@ -199,18 +199,21 @@ fun MagivantScreen(
     }
 
     Scaffold(
+        containerColor = cs.background,
+        contentColor = cs.onBackground,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(
                             text = when (currentTab) {
-                                MagivantTab.HOME -> "Leteciel Magivant DAC"
-                                MagivantTab.PRESETS -> "CS43198 Profiles"
-                                MagivantTab.SETTINGS -> "Theme & Hardware Setup"
+                                MagivantTab.HOME -> "Magivant DAC"
+                                MagivantTab.PRESETS -> "Presets"
+                                MagivantTab.SETTINGS -> "Settings"
                             },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
+                            color = cs.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -218,13 +221,13 @@ fun MagivantScreen(
                             text = if (state.isConnected) {
                                 "CS43198 • FW v${state.firmwareVersion.ifEmpty { "3.0.0" }} • ${state.sampleRateText}"
                             } else {
-                                "USB DAC Disconnected (VID 2FC6 : PID F13B)"
+                                "USB Disconnected (2FC6:F13B)"
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = if (state.isConnected) {
-                                MaterialTheme.colorScheme.primary
+                                cs.primary
                             } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                cs.onSurfaceVariant
                             }
                         )
                     }
@@ -234,7 +237,8 @@ fun MagivantScreen(
                         IconButton(onClick = { viewModel.manualResync() }) {
                             Icon(
                                 imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Refresh CS43198 Telemetry"
+                                contentDescription = "Refresh Status",
+                                tint = cs.onSurface
                             )
                         }
                     } else {
@@ -254,7 +258,9 @@ fun MagivantScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = cs.background,
+                    titleContentColor = cs.onSurface,
+                    actionIconContentColor = cs.onSurface
                 )
             )
         },
@@ -415,7 +421,8 @@ private fun ErrorStatusBanner(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.errorContainer
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer
     ) {
         Row(
             modifier = Modifier
@@ -500,16 +507,16 @@ private fun MagivantHomeScreen(
         )
 
         ExpressiveList(
-            title = "CS43198 Hardware Configuration",
+            title = "Hardware Settings",
             content = listOf(
                 {
                     ExpressiveSwitchItem(
                         icon = Icons.Filled.Bolt,
-                        title = "High Gain Output Mode (2.0 Vrms)",
+                        title = "High Gain (2.0 Vrms)",
                         summary = if (uiState.isHighGain) {
-                            "Active: 2.0 Vrms (0 dB analog rail) for high-impedance headphones"
+                            "2.0 Vrms (0 dB) output level"
                         } else {
-                            "Active: 1.0 Vrms (-6 dB analog rail) for sensitive IEMs"
+                            "1.0 Vrms (-6 dB) output level"
                         },
                         checked = uiState.isHighGain,
                         enabled = uiState.isConnected,
@@ -519,7 +526,7 @@ private fun MagivantHomeScreen(
                 {
                     ExpressiveDropdownItem(
                         icon = Icons.Filled.GraphicEq,
-                        title = "Digital Interpolation Filter",
+                        title = "Digital Filter",
                         summary = cs43198FilterDescriptions.getOrElse(uiState.digitalFilterPos) { "" },
                         items = cs43198FilterTitles,
                         itemDescriptions = cs43198FilterDescriptions,
@@ -531,7 +538,7 @@ private fun MagivantHomeScreen(
                 {
                     ExpressiveDropdownItem(
                         icon = Icons.Filled.LightMode,
-                        title = "Chassis Status LED",
+                        title = "Indicator LED",
                         summary = ledModeDescriptions.getOrElse(uiState.ledPos) { "" },
                         items = ledModeTitles,
                         itemDescriptions = ledModeDescriptions,
@@ -543,8 +550,8 @@ private fun MagivantHomeScreen(
                 {
                     ExpressiveSwitchItem(
                         icon = Icons.Filled.DoNotDisturbOn,
-                        title = "Auto Do Not Disturb on USB Connect",
-                        summary = "Silence system notifications automatically while listening through Magivant DAC",
+                        title = "Auto Do Not Disturb",
+                        summary = "Mute system notifications while the DAC is connected",
                         checked = uiState.isDndEnabled,
                         enabled = true,
                         onCheckedChange = onDndChanged
@@ -563,6 +570,7 @@ private fun MagivantStatusBanner(
     onOpenPresetsTab: () -> Unit
 ) {
     val context = LocalContext.current
+    val cs = MaterialTheme.colorScheme
     val imageLoader = remember {
         ImageLoader.Builder(context)
             .components {
@@ -575,16 +583,10 @@ private fun MagivantStatusBanner(
             .build()
     }
 
-    val statusContainerColor = if (uiState.isConnected) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-    }
-    val statusContentColor = if (uiState.isConnected) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    // Always use secondaryContainer for the primary status card so Light Mode retains rich accent color.
+    val statusContainerColor = cs.secondaryContainer
+    val statusContentColor = cs.onSecondaryContainer
+    val telemetryContainerColor = expressiveSurfaceColor()
 
     if (appSettings.isClassicBanner) {
         Column(
@@ -623,44 +625,56 @@ private fun MagivantStatusBanner(
                             if (!uiState.isConnected) onScanUsb()
                         },
                     shape = RoundedCornerShape(20.dp),
-                    color = statusContainerColor
+                    color = statusContainerColor,
+                    contentColor = statusContentColor
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = if (uiState.isConnected) Icons.Filled.GraphicEq else Icons.Filled.Usb,
+                            contentDescription = null,
+                            tint = statusContentColor.copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(64.dp)
+                                .offset(x = 8.dp, y = 8.dp)
+                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(
-                                imageVector = if (uiState.isConnected) Icons.Filled.CheckCircle else Icons.Filled.UsbOff,
-                                contentDescription = null,
-                                tint = statusContentColor,
-                                modifier = Modifier.size(18.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.isConnected) Icons.Filled.CheckCircle else Icons.Filled.UsbOff,
+                                    contentDescription = null,
+                                    tint = statusContentColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (uiState.isConnected) "Connected" else "Disconnected",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusContentColor
+                                )
+                            }
+                            Text(
+                                text = if (uiState.isConnected) uiState.sampleRateText else "Tap to scan USB",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = statusContentColor.copy(alpha = 0.9f)
                             )
                             Text(
-                                text = if (uiState.isConnected) "Connected" else "Disconnected",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = statusContentColor
+                                text = if (uiState.isConnected) {
+                                    "FW v${uiState.firmwareVersion.ifEmpty { "3.0.0" }} • ${uiState.bridgeModeText}"
+                                } else {
+                                    "Comtrue 2FC6:F13B"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = statusContentColor.copy(alpha = 0.78f)
                             )
                         }
-                        Text(
-                            text = if (uiState.isConnected) uiState.sampleRateText else "Tap to scan USB",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = statusContentColor.copy(alpha = 0.9f)
-                        )
-                        Text(
-                            text = if (uiState.isConnected) {
-                                "FW v${uiState.firmwareVersion.ifEmpty { "3.0.0" }} • ${uiState.bridgeModeText}"
-                            } else {
-                                "Comtrue 2FC6:F13B"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = statusContentColor.copy(alpha = 0.75f)
-                        )
                     }
                 }
 
@@ -670,35 +684,47 @@ private fun MagivantStatusBanner(
                         .fillMaxHeight()
                         .clickable { onOpenPresetsTab() },
                     shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+                    color = telemetryContainerColor,
+                    contentColor = cs.onSurface
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = null,
+                            tint = cs.primary.copy(alpha = 0.10f),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(64.dp)
+                                .offset(x = 8.dp, y = 8.dp)
                         )
-                        Text(
-                            text = "Output: ${Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (uiState.activePresetName.isNotEmpty()) {
-                                "Profile: ${uiState.activePresetName}"
-                            } else {
-                                if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = cs.onSurface
+                            )
+                            Text(
+                                text = "Output: ${Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = cs.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (uiState.activePresetName.isNotEmpty()) {
+                                    "Profile: ${uiState.activePresetName}"
+                                } else {
+                                    if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = cs.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -742,51 +768,63 @@ private fun MagivantStatusBanner(
                             if (!uiState.isConnected) onScanUsb()
                         },
                     shape = RoundedCornerShape(20.dp),
-                    color = statusContainerColor
+                    color = statusContainerColor,
+                    contentColor = statusContentColor
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = if (uiState.isConnected) Icons.Filled.GraphicEq else Icons.Filled.Usb,
+                            contentDescription = null,
+                            tint = statusContentColor.copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(54.dp)
+                                .offset(x = 6.dp, y = 6.dp)
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = if (uiState.isConnected) Icons.Filled.CheckCircle else Icons.Filled.UsbOff,
-                                contentDescription = null,
-                                tint = statusContentColor,
-                                modifier = Modifier.size(16.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.isConnected) Icons.Filled.CheckCircle else Icons.Filled.UsbOff,
+                                    contentDescription = null,
+                                    tint = statusContentColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (uiState.isConnected) "Connected" else "Disconnected",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusContentColor,
+                                    maxLines = 1
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (uiState.isConnected) uiState.sampleRateText else "Tap to scan USB",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = statusContentColor.copy(alpha = 0.9f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = if (uiState.isConnected) "CS43198 Live" else "Disconnected",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = statusContentColor,
+                                text = if (uiState.isConnected) {
+                                    "FW v${uiState.firmwareVersion.ifEmpty { "3.0.0" }}"
+                                } else {
+                                    "VID 2FC6 : PID F13B"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = statusContentColor.copy(alpha = 0.78f),
                                 maxLines = 1
                             )
                         }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (uiState.isConnected) uiState.sampleRateText else "Tap to scan USB",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = statusContentColor.copy(alpha = 0.9f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = if (uiState.isConnected) {
-                                "FW v${uiState.firmwareVersion.ifEmpty { "3.0.0" }}"
-                            } else {
-                                "VID 2FC6 : PID F13B"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = statusContentColor.copy(alpha = 0.75f),
-                            maxLines = 1
-                        )
                     }
                 }
 
@@ -796,35 +834,47 @@ private fun MagivantStatusBanner(
                         .weight(1f)
                         .clickable { onOpenPresetsTab() },
                     shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+                    color = telemetryContainerColor,
+                    contentColor = cs.onSurface
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = null,
+                            tint = cs.primary.copy(alpha = 0.10f),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(54.dp)
+                                .offset(x = 6.dp, y = 6.dp)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1
-                        )
-                        Text(
-                            text = if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = cs.onSurface,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = cs.primary,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = cs.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -836,10 +886,12 @@ private fun MagivantStatusBanner(
 private fun DisconnectedQuickCard(
     onScanUsb: () -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+        color = expressiveSurfaceColor(),
+        contentColor = cs.onSurface
     ) {
         Row(
             modifier = Modifier
@@ -851,19 +903,20 @@ private fun DisconnectedQuickCard(
             Icon(
                 imageVector = Icons.Filled.UsbOff,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = cs.primary,
                 modifier = Modifier.size(28.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Leteciel Magivant Not Connected",
+                    text = "DAC Disconnected",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = cs.onSurface
                 )
                 Text(
-                    text = "Plug in your Magivant USB DAC and tap Scan USB to unlock CS43198 register controls.",
+                    text = "Connect the Magivant USB DAC and tap Scan USB.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = cs.onSurfaceVariant
                 )
             }
             Button(onClick = onScanUsb) {
@@ -881,12 +934,13 @@ private fun VolumeAndBalanceCard(
     onBalanceChanged: (Int) -> Unit,
     onQuickSavePreset: () -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     val dbText = Cs43198Spec.formatDbFs(uiState.rawVolumeReg)
     val vrmsText = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain)
     val regHex = String.format(Locale.US, "0x%02X", uiState.rawVolumeReg and 0xFF)
 
     ExpressiveList(
-        title = "Precision Attenuation & Channel Balance",
+        title = "Volume & Channel Balance",
         content = listOf(
             {
                 Column(
@@ -906,25 +960,26 @@ private fun VolumeAndBalanceCard(
                         ) {
                             Icon(
                                 imageVector = if (uiState.rawVolumeReg == 0xFF) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = "Master Volume",
-                                tint = MaterialTheme.colorScheme.primary
+                                contentDescription = "Volume",
+                                tint = cs.primary
                             )
                             Column {
                                 Text(
-                                    text = "Master Volume (${uiState.volumeIndex} / ${uiState.maxVolumeIndex})",
+                                    text = "Volume (${uiState.volumeIndex} / ${uiState.maxVolumeIndex})",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = cs.onSurface
                                 )
                                 Text(
                                     text = "$dbText • $vrmsText • Reg $regHex",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = cs.onSurfaceVariant
                                 )
                             }
                         }
 
                         TextButton(onClick = onQuickSavePreset) {
-                            Text("Save Profile")
+                            Text("Save Preset", color = cs.primary)
                         }
                     }
 
@@ -994,12 +1049,13 @@ private fun VolumeAndBalanceCard(
                             Text(
                                 text = "L / R Channel Trim",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = cs.onSurface
                             )
                             Text(
                                 text = Cs43198Spec.formatBalanceDb(uiState.balanceBaseValue),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = cs.onSurfaceVariant
                             )
                         }
 
@@ -1008,7 +1064,7 @@ private fun VolumeAndBalanceCard(
                                 onClick = { onBalanceChanged(0) },
                                 enabled = uiState.isConnected
                             ) {
-                                Text("Center (0 dB)")
+                                Text("Center (0 dB)", color = cs.primary)
                             }
                         }
                     }

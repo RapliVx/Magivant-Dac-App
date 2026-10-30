@@ -138,7 +138,7 @@ object Cs43198Spec {
 
     // Decodes Comtrue CT7601/CS43198 stream status byte returned by read command 0xA1 (-95).
     fun decodeSampleRateCode(code: Int): String = when (code and 0xFF) {
-        0x00 -> "Idle / Standby"
+        0x00 -> "Standby"
         0x01, 0x10 -> "PCM 44.1 kHz"
         0x02, 0x11 -> "PCM 48.0 kHz"
         0x03, 0x12 -> "PCM 88.2 kHz"
@@ -150,6 +150,6 @@ object Cs43198Spec {
         0x20 -> "DSD64 (2.82 MHz)"
         0x21 -> "DSD128 (5.64 MHz)"
         0x22 -> "DSD256 (11.29 MHz)"
-        else -> String.format(Locale.US, "Stream Active (0x%02X)", code and 0xFF)
+        else -> String.format(Locale.US, "PCM/DSD (0x%02X)", code and 0xFF)
     }
 }

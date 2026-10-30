@@ -26,7 +26,7 @@ class ExampleUnitTest {
 
     @Test
     fun cs43198SampleRateDecoder_handlesPcmAndDsd() {
-        assertEquals("Idle / Standby", Cs43198Spec.decodeSampleRateCode(0x00))
+        assertEquals("Standby", Cs43198Spec.decodeSampleRateCode(0x00))
         assertEquals("PCM 44.1 kHz", Cs43198Spec.decodeSampleRateCode(0x10))
         assertEquals("PCM 384.0 kHz", Cs43198Spec.decodeSampleRateCode(0x17))
         assertEquals("DSD256 (11.29 MHz)", Cs43198Spec.decodeSampleRateCode(0x22))

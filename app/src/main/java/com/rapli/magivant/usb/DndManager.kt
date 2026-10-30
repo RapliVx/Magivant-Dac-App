@@ -22,7 +22,7 @@ class DndManager(context: Context) {
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            Log.e("DndManager", "Failed to start DND permission settings", e)
+            Log.e("DndManager", "DND settings activity unavailable", e)
         }
     }
 
@@ -32,14 +32,14 @@ class DndManager(context: Context) {
             filter != NotificationManager.INTERRUPTION_FILTER_ALL && 
             filter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN
         } catch (e: Exception) {
-            Log.e("DndManager", "Failed to get current DND state", e)
+            Log.e("DndManager", "Failed to read interruption filter", e)
             false
         }
     }
 
     fun setDndActive(activate: Boolean) {
         if (!hasDndPermission()) {
-            Log.w("DndManager", "Cannot change DND state: Permission not granted")
+            Log.w("DndManager", "DND permission missing")
             return
         }
 
@@ -49,16 +49,15 @@ class DndManager(context: Context) {
             } else {
                 NotificationManager.INTERRUPTION_FILTER_ALL
             }
-            
-            // Only update if state is different to avoid unnecessary calls
+
             if (notificationManager.currentInterruptionFilter != targetFilter) {
                 notificationManager.setInterruptionFilter(targetFilter)
-                Log.i("DndManager", "DND state changed to: $targetFilter")
+                Log.i("DndManager", "Interruption filter set to $targetFilter")
             }
         } catch (e: SecurityException) {
-            Log.e("DndManager", "Security exception when changing DND state", e)
+            Log.e("DndManager", "DND access denied", e)
         } catch (e: Exception) {
-            Log.e("DndManager", "Unexpected error when changing DND state", e)
+            Log.e("DndManager", "Failed to update interruption filter", e)
         }
     }
 }

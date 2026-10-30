@@ -3,35 +3,48 @@ package com.rapli.magivant.ui.theme
 import android.app.Activity
 import android.content.Context
 import android.os.Build
-import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
+import android.view.WindowManager
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.core.view.WindowInsetsControllerCompat
+import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import com.rapli.magivant.ui.util.getHeaderImage
+import kotlin.math.max
+import kotlin.math.min
 
 enum class ColorMode(val value: Int) {
     SYSTEM(3),
-    LIGHT(1),
-    DARK(2),
-    DARKAMOLED(4);
+    LIGHT(4),
+    DARK(5),
+    DARKAMOLED(6);
 
     companion object {
-        fun fromValue(value: Int) = entries.find { it.value == value } ?: SYSTEM
+        fun fromValue(value: Int) = when (value) {
+            3 -> SYSTEM
+            1, 4 -> LIGHT
+            2, 5 -> DARK
+            6 -> DARKAMOLED
+            else -> SYSTEM
+        }
     }
 
     fun getDarkThemeValue(systemDarkTheme: Boolean) = when (this) {
@@ -91,86 +104,152 @@ fun MAGIVANTDACTheme(
     val amoledMode = currentAppSettings.colorMode == ColorMode.DARKAMOLED
     val dynamicColor = currentAppSettings.keyColor == 0
 
-    val colorScheme = when {
+    val baseScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val baseScheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            if (amoledMode) applyAmoledOverrides(baseScheme) else baseScheme
+            rememberDynamicColorScheme(
+                seedColor = colorResource(id = android.R.color.system_accent1_500),
+                isDark = darkTheme,
+                isAmoled = amoledMode,
+                style = PaletteStyle.TonalSpot
+            )
         }
         !dynamicColor -> {
             rememberDynamicColorScheme(
                 seedColor = Color(currentAppSettings.keyColor),
                 isDark = darkTheme,
-                isAmoled = amoledMode
+                isAmoled = amoledMode,
+                style = PaletteStyle.TonalSpot
             )
         }
         else -> {
-            if (darkTheme) {
-                val baseDark = darkColorScheme(
-                    primary = PRIMARY,
-                    secondary = PRIMARY_LIGHT,
-                    tertiary = SECONDARY_LIGHT
-                )
-                if (amoledMode) applyAmoledOverrides(baseDark) else baseDark
-            } else {
-                expressiveLightColorScheme()
-            }
+            if (darkTheme) darkColorScheme() else expressiveLightColorScheme()
         }
     }
 
-    SystemBarStyle(
-        darkMode = darkTheme
+    val colorScheme = rememberDynamicContrastScheme(
+        scheme = baseScheme,
+        isDark = darkTheme,
+        isAmoled = amoledMode
     )
+
+    LaunchedEffect(darkTheme) {
+        val window = (context as? Activity)?.window ?: return@LaunchedEffect
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.decorView.isForceDarkAllowed = false
+            window.isNavigationBarContrastEnforced = false
+        }
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !darkTheme
+            isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
 
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        motionScheme = MotionScheme.expressive(),
-        content = content
+        motionScheme = MotionScheme.expressive()
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = colorScheme.background,
+            contentColor = colorScheme.onBackground
+        ) {
+            CompositionLocalProvider(LocalContentColor provides colorScheme.onSurface) {
+                content()
+            }
+        }
+    }
+}
+
+// Enforces WCAG contrast ratios dynamically across generated MaterialKolor tokens.
+@Composable
+private fun rememberDynamicContrastScheme(
+    scheme: ColorScheme,
+    isDark: Boolean,
+    isAmoled: Boolean
+): ColorScheme {
+    val bg = when {
+        isAmoled -> scheme.surfaceContainerLowest
+        !isDark -> scheme.surfaceContainerLowest
+        else -> scheme.background
+    }
+    val surface = when {
+        isAmoled -> scheme.surfaceContainerLowest
+        !isDark -> scheme.surfaceContainerLow
+        else -> scheme.surface
+    }
+    val anchorInk = if (isDark) scheme.inverseOnSurface else scheme.inverseSurface
+
+    return scheme.copy(
+        background = bg,
+        surface = surface,
+        surfaceTint = scheme.primary,
+        onBackground = ensureDynamicContrast(bg, scheme.onBackground, anchorInk, minRatio = 7.0f),
+        onSurface = ensureDynamicContrast(surface, scheme.onSurface, anchorInk, minRatio = 7.0f),
+        onSurfaceVariant = ensureDynamicContrast(
+            scheme.surfaceContainer,
+            scheme.onSurfaceVariant,
+            anchorInk,
+            minRatio = 4.5f
+        ),
+        onSecondaryContainer = ensureDynamicContrast(
+            scheme.secondaryContainer,
+            scheme.onSecondaryContainer,
+            anchorInk,
+            minRatio = 4.5f
+        ),
+        onPrimaryContainer = ensureDynamicContrast(
+            scheme.primaryContainer,
+            scheme.onPrimaryContainer,
+            anchorInk,
+            minRatio = 4.5f
+        )
     )
 }
 
-private fun applyAmoledOverrides(scheme: ColorScheme): ColorScheme = scheme.copy(
-    background = AMOLED_BLACK,
-    surface = AMOLED_BLACK,
-    surfaceContainerLowest = AMOLED_BLACK,
-    surfaceContainerLow = Color(0xFF0A0A0A),
-    surfaceContainer = Color(0xFF111111),
-    surfaceContainerHigh = Color(0xFF181818),
-    surfaceContainerHighest = Color(0xFF202020)
-)
+private fun contrastRatio(a: Color, b: Color): Float {
+    val l1 = a.luminance()
+    val l2 = b.luminance()
+    val hi = max(l1, l2)
+    val lo = min(l1, l2)
+    return (hi + 0.05f) / (lo + 0.05f)
+}
+
+private fun ensureDynamicContrast(
+    background: Color,
+    foreground: Color,
+    anchor: Color,
+    minRatio: Float
+): Color {
+    if (contrastRatio(background, foreground) >= minRatio) return foreground
+    var lo = 0f
+    var hi = 1f
+    var best = foreground
+    repeat(10) {
+        val mid = (lo + hi) * 0.5f
+        val candidate = lerp(foreground, anchor, mid)
+        if (contrastRatio(background, candidate) >= minRatio) {
+            best = candidate
+            hi = mid
+        } else {
+            lo = mid
+        }
+    }
+    return best
+}
 
 @Composable
 @ReadOnlyComposable
 fun isInDarkTheme(themeMode: Int): Boolean {
     return when (themeMode) {
-        1 -> false
-        2, 4 -> true
+        1, 4 -> false
+        2, 5, 6 -> true
         else -> isSystemInDarkTheme()
-    }
-}
-
-@Composable
-private fun SystemBarStyle(
-    darkMode: Boolean,
-    statusBarScrim: Color = Color.Transparent,
-    navigationBarScrim: Color = Color.Transparent
-) {
-    val context = LocalContext.current
-    val activity = context as? ComponentActivity
-
-    LaunchedEffect(darkMode, statusBarScrim, navigationBarScrim) {
-        activity?.enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(
-                statusBarScrim.toArgb(),
-                statusBarScrim.toArgb()
-            ) { darkMode },
-            navigationBarStyle = when {
-                darkMode -> SystemBarStyle.dark(navigationBarScrim.toArgb())
-                else -> SystemBarStyle.light(
-                    navigationBarScrim.toArgb(),
-                    navigationBarScrim.toArgb()
-                )
-            }
-        )
     }
 }

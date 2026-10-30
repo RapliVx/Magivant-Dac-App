@@ -41,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
@@ -57,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -71,9 +73,9 @@ enum class MagivantTab(
     val iconSelected: ImageVector,
     val iconNotSelected: ImageVector
 ) {
-    HOME("DAC Control", Icons.Filled.GraphicEq, Icons.Outlined.GraphicEq),
+    HOME("DAC", Icons.Filled.GraphicEq, Icons.Outlined.GraphicEq),
     PRESETS("Presets", Icons.Filled.Tune, Icons.Outlined.Tune),
-    SETTINGS("Theme & Setup", Icons.Filled.Palette, Icons.Outlined.Palette)
+    SETTINGS("Settings", Icons.Filled.Palette, Icons.Outlined.Palette)
 }
 
 @Composable
@@ -92,6 +94,9 @@ fun MagivantBottomBar(
         val latestCurrentTab by rememberUpdatedState(currentTab)
         val latestOnTabSelected by rememberUpdatedState(onTabSelected)
 
+        val cs = MaterialTheme.colorScheme
+        val isLight = cs.background.luminance() > 0.5f
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -109,11 +114,12 @@ fun MagivantBottomBar(
                     .shadow(
                         elevation = 8.dp,
                         shape = RoundedCornerShape(50),
-                        spotColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)
+                        spotColor = cs.scrim.copy(alpha = 0.3f)
                     ),
                 shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
-                tonalElevation = 3.dp
+                color = if (isLight) cs.surfaceColorAtElevation(6.dp) else cs.surfaceColorAtElevation(3.dp),
+                contentColor = cs.onSurface,
+                tonalElevation = if (isLight) 6.dp else 3.dp
             ) {
                 Row(
                     modifier = Modifier
@@ -186,11 +192,14 @@ fun MagivantBottomBar(
             }
         }
     } else {
+        val cs = MaterialTheme.colorScheme
+        val isLight = cs.background.luminance() > 0.5f
         NavigationBar(
             modifier = Modifier.windowInsetsPadding(
                 WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
             ),
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+            containerColor = if (isLight) cs.surfaceColorAtElevation(4.dp) else cs.surfaceColorAtElevation(2.dp),
+            contentColor = cs.onSurface
         ) {
             tabs.forEach { tab ->
                 val selected = currentTab == tab
@@ -211,6 +220,13 @@ fun MagivantBottomBar(
                             overflow = TextOverflow.Ellipsis
                         )
                     },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = cs.onSecondaryContainer,
+                        selectedTextColor = cs.onSurface,
+                        indicatorColor = cs.secondaryContainer,
+                        unselectedIconColor = cs.onSurfaceVariant,
+                        unselectedTextColor = cs.onSurfaceVariant
+                    ),
                     alwaysShowLabel = false
                 )
             }

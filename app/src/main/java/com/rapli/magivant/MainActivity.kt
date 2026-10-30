@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
@@ -14,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +71,10 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.decorView.isForceDarkAllowed = false
+        }
         super.onCreate(savedInstanceState)
 
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
@@ -94,16 +100,33 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
+            val prefs = remember {
+                context.getSharedPreferences(ThemeController.PREFS_NAME, Context.MODE_PRIVATE)
+            }
             var appSettings by remember {
                 mutableStateOf(ThemeController.getAppSettings(context))
             }
-            val density = LocalDensity.current
-            val customDensity = remember(density, appSettings.dpiScale) {
-                Density(density.density * appSettings.dpiScale, density.fontScale)
+
+            DisposableEffect(prefs) {
+                val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+                    appSettings = ThemeController.getAppSettings(context)
+                }
+                prefs.registerOnSharedPreferenceChangeListener(listener)
+                onDispose {
+                    prefs.unregisterOnSharedPreferenceChangeListener(listener)
+                }
             }
 
-            CompositionLocalProvider(LocalDensity provides customDensity) {
-                MAGIVANTDACTheme(appSettings = appSettings) {
+            val density = LocalDensity.current
+            val customDensity = remember(density, appSettings.dpiScale) {
+                Density(
+                    density = density.density * appSettings.dpiScale,
+                    fontScale = density.fontScale * appSettings.dpiScale
+                )
+            }
+
+            MAGIVANTDACTheme(appSettings = appSettings) {
+                CompositionLocalProvider(LocalDensity provides customDensity) {
                     MagivantScreen(
                         viewModel = viewModel,
                         appSettings = appSettings,

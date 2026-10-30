@@ -22,9 +22,9 @@ import kotlin.math.abs
 data class DacUiState(
     val isConnected: Boolean = false,
     val firmwareVersion: String = "",
-    val sampleRateText: String = "Idle / Standby",
+    val sampleRateText: String = "Standby",
     val sampleRateRawCode: Int = 0,
-    val bridgeModeText: String = "UAC 2.0 Hi-Res",
+    val bridgeModeText: String = "UAC 2.0",
     val volumeIndex: Int = 36,
     val rawVolumeReg: Int = 0x30,
     val balanceBaseValue: Int = 0,
@@ -102,7 +102,7 @@ class MagivantViewModel(
         _uiState.value = _uiState.value.copy(
             isConnected = true,
             isSyncing = true,
-            syncMessage = "Reading CS43198 hardware registers...",
+            syncMessage = "Reading device state...",
             errorMessage = null
         )
 
@@ -140,7 +140,7 @@ class MagivantViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isSyncing = true,
-                syncMessage = "Refreshing CS43198 telemetry...",
+                syncMessage = "Refreshing...",
                 errorMessage = null
             )
             syncFirmware()
@@ -229,7 +229,7 @@ class MagivantViewModel(
     private suspend fun syncBridgeStatus() {
         val data = usbManager.readData((-92).toByte()) ?: return
         val modeFlag = data[4].toInt() and 0xFF
-        val modeLabel = if (modeFlag == 1) "UAC 2.0 Exclusive" else "UAC Bridge (Mode $modeFlag)"
+        val modeLabel = if (modeFlag == 1) "UAC 2.0" else "UAC Mode $modeFlag"
         _uiState.value = _uiState.value.copy(bridgeModeText = modeLabel)
     }
 
@@ -270,7 +270,7 @@ class MagivantViewModel(
             val ok = usbManager.sendCommand(4, regValue.toByte())
             if (!ok && _uiState.value.isConnected) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "USB transfer failed while updating CS43198 volume register."
+                    errorMessage = "Failed to set volume over USB."
                 )
             }
         }
@@ -354,14 +354,14 @@ class MagivantViewModel(
     fun applyPreset(preset: DacPreset) {
         if (!_uiState.value.isConnected) {
             _uiState.value = _uiState.value.copy(
-                errorMessage = "Connect Leteciel Magivant DAC before applying '${preset.name}'."
+                errorMessage = "Connect the DAC before applying '${preset.name}'."
             )
             return
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isSyncing = true,
-                syncMessage = "Applying preset '${preset.name}'...",
+                syncMessage = "Applying '${preset.name}'...",
                 activePresetName = preset.name,
                 errorMessage = null
             )
@@ -404,7 +404,7 @@ class MagivantViewModel(
             refreshPresets()
             if (imported == null) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Selected file is not a valid Magivant preset JSON."
+                    errorMessage = "Invalid preset JSON file."
                 )
             }
         }
@@ -446,7 +446,7 @@ class MagivantViewModel(
             val ok = presetManager.exportToUri(context, uri, preset)
             if (!ok) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Could not write preset file to selected storage location."
+                    errorMessage = "Failed to export preset file."
                 )
             }
         }

@@ -7,17 +7,16 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +30,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -43,19 +41,17 @@ import androidx.compose.material.icons.filled.Brightness1
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Swipe
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -63,13 +59,13 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -78,11 +74,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -94,17 +93,16 @@ import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
+import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import com.rapli.magivant.R
-import com.rapli.magivant.ui.components.ExpressiveColumn
 import com.rapli.magivant.ui.components.ExpressiveDropdownItem
 import com.rapli.magivant.ui.components.ExpressiveList
 import com.rapli.magivant.ui.components.ExpressiveListItem
 import com.rapli.magivant.ui.components.ExpressiveSwitchItem
+import com.rapli.magivant.ui.components.expressiveSurfaceColor
 import com.rapli.magivant.ui.theme.AppSettings
 import com.rapli.magivant.ui.theme.ColorMode
-import com.rapli.magivant.ui.theme.KeyColorOption
-import com.rapli.magivant.ui.theme.isInDarkTheme
 import com.rapli.magivant.ui.theme.keyColorOptions
 import com.rapli.magivant.ui.util.clearCustomHeaderImage
 import com.rapli.magivant.ui.util.copyUriToInternalStorage
@@ -133,6 +131,10 @@ fun MagivantSettingsScreen(
     onUpdateStartupPreset: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val cs = MaterialTheme.colorScheme
+    val systemDark = isSystemInDarkTheme()
+    val isDark = appSettings.colorMode.getDarkThemeValue(systemDark)
+    val isAmoled = appSettings.colorMode == ColorMode.DARKAMOLED
     var tempDpiScale by remember(appSettings.dpiScale) { mutableFloatStateOf(appSettings.dpiScale) }
 
     val cropLauncher = rememberLauncherForActivityResult(
@@ -152,7 +154,7 @@ fun MagivantSettingsScreen(
     ) { uri: Uri? ->
         uri?.let {
             val mimeType = context.contentResolver.getType(it)
-            if (mimeType == "image/gif") {
+            if (mimeType?.contains("gif", ignoreCase = true) == true) {
                 try {
                     context.contentResolver.takePersistableUriPermission(
                         it,
@@ -171,9 +173,19 @@ fun MagivantSettingsScreen(
                 val destinationUri = Uri.fromFile(
                     File(context.filesDir, "cropped_header_${System.currentTimeMillis()}.jpg")
                 )
+                val options = UCrop.Options().apply {
+                    setToolbarColor(cs.surface.toArgb())
+                    setStatusBarColor(cs.surface.toArgb())
+                    setToolbarWidgetColor(cs.onSurface.toArgb())
+                    setActiveControlsWidgetColor(cs.primary.toArgb())
+                    setRootViewBackgroundColor(cs.surface.toArgb())
+                    setCropFrameColor(cs.primary.toArgb())
+                    setFreeStyleCropEnabled(true)
+                }
                 val uCrop = UCrop.of(it, destinationUri)
                     .withAspectRatio(16f, 9f)
                     .withMaxResultSize(1600, 900)
+                    .withOptions(options)
                 cropLauncher.launch(uCrop.getIntent(context))
             }
         }
@@ -199,113 +211,97 @@ fun MagivantSettingsScreen(
     ) {
         ThemePreviewCard(
             appSettings = appSettings,
-            uiState = uiState
+            uiState = uiState,
+            isDark = isDark,
+            isAmoled = isAmoled
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        Text(
+            text = "Color Palette",
+            style = MaterialTheme.typography.titleSmall,
+            color = cs.primary,
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+        )
+
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            themeOptions.forEachIndexed { index, (label, mode, icon) ->
-                ToggleButton(
-                    checked = appSettings.colorMode == mode,
-                    onCheckedChange = {
-                        if (it) onUpdateThemeMode(mode)
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics { role = Role.RadioButton },
-                    shapes = when (index) {
-                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        themeOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                    }
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1
-                        )
-                    }
-                }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ColorButton(
+                    color = Color.Unspecified,
+                    isSelected = appSettings.keyColor == 0,
+                    isDark = isDark,
+                    isAmoled = isAmoled,
+                    onClick = { onUpdateKeyColor(0) }
+                )
+            }
+
+            keyColorOptions.forEach { option ->
+                val colorInt = option.color.toArgb()
+                ColorButton(
+                    color = option.color,
+                    isSelected = appSettings.keyColor == colorInt,
+                    isDark = isDark,
+                    isAmoled = isAmoled,
+                    onClick = { onUpdateKeyColor(colorInt) }
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        ExpressiveColumn(
-            title = "Color Palette",
-            content = buildList {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    add {
-                        ExpressiveSwitchItem(
-                            icon = Icons.Filled.ColorLens,
-                            title = "Dynamic Wallpaper Color (Monet)",
-                            summary = "Derive surface and accent tones from Android 12+ system wallpaper",
-                            checked = appSettings.keyColor == 0,
-                            onCheckedChange = { enabled ->
-                                val targetColor = if (enabled) {
-                                    0
-                                } else {
-                                    keyColorOptions.first().color.toArgb()
-                                }
-                                onUpdateKeyColor(targetColor)
-                            }
-                        )
-                    }
-                }
-
-                add {
-                    AnimatedVisibility(
-                        visible = appSettings.keyColor != 0 || Build.VERSION.SDK_INT < Build.VERSION_CODES.S,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        val isDark = isInDarkTheme(appSettings.colorMode.value)
-                        val isAmoled = appSettings.colorMode == ColorMode.DARKAMOLED
-                        Column(
+        ExpressiveList(
+            title = "Theme Mode",
+            content = listOf {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+                ) {
+                    themeOptions.forEachIndexed { index, (label, mode, icon) ->
+                        val isChecked = appSettings.colorMode == mode
+                        ToggleButton(
+                            checked = isChecked,
+                            onCheckedChange = {
+                                if (it) onUpdateThemeMode(mode)
+                            },
+                            colors = ToggleButtonDefaults.toggleButtonColors(
+                                containerColor = cs.surfaceContainerHighest,
+                                contentColor = cs.onSurface,
+                                checkedContainerColor = cs.primary,
+                                checkedContentColor = cs.onPrimary
+                            ),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp)
+                                .weight(1f)
+                                .semantics { role = Role.RadioButton },
+                            shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                themeOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
                         ) {
-                            val selectedName = keyColorOptions.find {
-                                it.color.toArgb() == appSettings.keyColor
-                            }?.name ?: "Custom Seed"
-                            Text(
-                                text = "Active Seed: $selectedName",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                            )
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                keyColorOptions.forEach { option ->
-                                    ColorButton(
-                                        option = option,
-                                        isSelected = appSettings.keyColor == option.color.toArgb(),
-                                        isDark = isDark,
-                                        isAmoled = isAmoled,
-                                        onClick = {
-                                            onUpdateKeyColor(option.color.toArgb())
-                                        }
-                                    )
-                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = if (isChecked) cs.onPrimary else cs.onSurface,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isChecked) cs.onPrimary else cs.onSurface,
+                                    maxLines = 1
+                                )
                             }
                         }
                     }
@@ -316,16 +312,16 @@ fun MagivantSettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         ExpressiveList(
-            title = "Banner & Navigation Style",
+            title = "Layout & Navigation",
             content = buildList {
                 add {
                     ExpressiveSwitchItem(
                         icon = Icons.Filled.Image,
-                        title = "Custom Header Banner",
+                        title = "Custom Header Image",
                         summary = if (appSettings.customHeaderUri != null) {
-                            "Using custom image or animated GIF banner"
+                            "Custom image or GIF active"
                         } else {
-                            "Using default Leteciel Magivant banner"
+                            "Default header image"
                         },
                         checked = appSettings.customHeaderUri != null,
                         onCheckedChange = { checked ->
@@ -345,10 +341,10 @@ fun MagivantSettingsScreen(
                             onClick = {
                                 imagePickerLauncher.launch("image/*")
                             },
-                            headlineContent = { Text("Change Banner Image or GIF") },
-                            supportingContent = { Text("Supports 16:9 cropped photos (UCrop) and looping animated GIFs") },
+                            headlineContent = { Text("Select Image or GIF", color = cs.onSurface) },
+                            supportingContent = { Text("16:9 crop or animated GIF", color = cs.onSurfaceVariant) },
                             leadingContent = {
-                                Icon(Icons.Filled.Image, contentDescription = "Change Banner")
+                                Icon(Icons.Filled.Image, contentDescription = "Select Banner", tint = cs.primary)
                             }
                         )
                     }
@@ -357,11 +353,11 @@ fun MagivantSettingsScreen(
                 add {
                     ExpressiveSwitchItem(
                         icon = Icons.Filled.ViewAgenda,
-                        title = "Classic Stacked Banner",
+                        title = "Classic Banner Layout",
                         summary = if (appSettings.isClassicBanner) {
-                            "Full-width banner card on top with two telemetry cards below"
+                            "Full-width header above status cards"
                         } else {
-                            "Modern split layout (60% banner left, 40% telemetry cards right)"
+                            "Split header beside status cards"
                         },
                         checked = appSettings.isClassicBanner,
                         onCheckedChange = onUpdateClassicBanner
@@ -371,8 +367,8 @@ fun MagivantSettingsScreen(
                 add {
                     ExpressiveSwitchItem(
                         icon = Icons.Filled.ViewCarousel,
-                        title = "Floating Pill Navbar",
-                        summary = "Use elevated pill navigation bar instead of full-width bottom bar",
+                        title = "Floating Navigation Bar",
+                        summary = "Show compact bottom bar",
                         checked = appSettings.isFloatingNavbar,
                         onCheckedChange = onUpdateFloatingNavbar
                     )
@@ -382,8 +378,8 @@ fun MagivantSettingsScreen(
                     add {
                         ExpressiveSwitchItem(
                             icon = Icons.Filled.Swipe,
-                            title = "Floating Navbar Slide Gesture",
-                            summary = "Drag horizontally across the floating pill to switch tabs with spring physics",
+                            title = "Swipe to Switch Tabs",
+                            summary = "Drag across the floating bar to switch tabs",
                             checked = appSettings.isFloatingNavbarGesture,
                             onCheckedChange = onUpdateFloatingGesture
                         )
@@ -404,17 +400,17 @@ fun MagivantSettingsScreen(
         }
 
         ExpressiveList(
-            title = "CS43198 Hardware Protection & Automation",
+            title = "Volume Limit & Startup",
             content = listOf(
                 {
                     ExpressiveListItem(
-                        headlineContent = { Text("Hardware Volume Ceiling") },
+                        headlineContent = { Text("Max Volume Limit", color = cs.onSurface) },
                         supportingContent = {
                             Column {
                                 Text(
-                                    text = "Max Step: ${uiState.maxVolumeIndex}/60 ($maxLimitDb) • Protects sensitive IEMs",
+                                    text = "Limit: ${uiState.maxVolumeIndex}/60 ($maxLimitDb)",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = cs.onSurfaceVariant
                                 )
                                 Slider(
                                     value = uiState.maxVolumeIndex.toFloat(),
@@ -425,15 +421,15 @@ fun MagivantSettingsScreen(
                             }
                         },
                         leadingContent = {
-                            Icon(Icons.Filled.Hearing, contentDescription = "Volume Ceiling")
+                            Icon(Icons.Filled.Hearing, contentDescription = "Volume Limit", tint = cs.primary)
                         }
                     )
                 },
                 {
                     ExpressiveDropdownItem(
                         icon = Icons.Filled.PlayCircleOutline,
-                        title = "Auto-Apply Profile on USB Connect",
-                        summary = "Automatically write a saved profile to the CS43198 when plugged in",
+                        title = "Startup Preset",
+                        summary = "Apply a preset when the DAC connects",
                         items = startupChoices,
                         selectedIndex = currentStartupIdx,
                         onItemSelected = { index ->
@@ -448,13 +444,13 @@ fun MagivantSettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         ExpressiveList(
-            title = "Display Density",
+            title = "Interface Scale",
             content = listOf {
                 ExpressiveListItem(
-                    headlineContent = { Text("App UI Scale") },
+                    headlineContent = { Text("UI Scale", color = cs.onSurface) },
                     supportingContent = {
                         Column {
-                            Text("${(tempDpiScale * 100).toInt()}%")
+                            Text("${(tempDpiScale * 100).toInt()}%", color = cs.onSurfaceVariant)
                             Slider(
                                 value = tempDpiScale,
                                 onValueChange = { tempDpiScale = it },
@@ -464,7 +460,7 @@ fun MagivantSettingsScreen(
                         }
                     },
                     leadingContent = {
-                        Icon(Icons.Filled.FormatSize, contentDescription = "UI Scale")
+                        Icon(Icons.Filled.FormatSize, contentDescription = "UI Scale", tint = cs.primary)
                     },
                     trailingContent = {
                         if (tempDpiScale != appSettings.dpiScale) {
@@ -483,78 +479,112 @@ fun MagivantSettingsScreen(
 
 @Composable
 private fun ColorButton(
-    option: KeyColorOption,
+    color: Color,
     isSelected: Boolean,
     isDark: Boolean,
     isAmoled: Boolean,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    val colorScheme = if (option.color == Color.Unspecified) {
+    val colorScheme = if (color == Color.Unspecified) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (isDark) androidx.compose.material3.dynamicDarkColorScheme(context)
-            else androidx.compose.material3.dynamicLightColorScheme(context)
+            rememberDynamicColorScheme(
+                seedColor = colorResource(id = android.R.color.system_accent1_500),
+                isDark = isDark,
+                isAmoled = isAmoled,
+                style = PaletteStyle.TonalSpot
+            )
         } else {
             MaterialTheme.colorScheme
         }
     } else {
         rememberDynamicColorScheme(
-            seedColor = option.color,
+            seedColor = color,
             isDark = isDark,
-            isAmoled = isAmoled
+            isAmoled = isAmoled,
+            style = PaletteStyle.TonalSpot
         )
     }
+
+    val innerCornerRadius by animateDpAsState(
+        targetValue = if (isSelected) 24.dp else 16.dp,
+        label = "innerCornerRadius"
+    )
 
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
         color = colorScheme.surfaceContainer,
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)
+        ),
         modifier = Modifier.size(72.dp)
     ) {
-        val scale by animateFloatAsState(
-            targetValue = if (isSelected) 1.1f else 1.0f,
-            animationSpec = spring(stiffness = Spring.StiffnessLow),
-            label = "colorButtonScale"
-        )
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-        ) {
+        Box(contentAlignment = Alignment.Center) {
             Canvas(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, colorScheme.outlineVariant, CircleShape)
+                    .clip(RoundedCornerShape(innerCornerRadius))
             ) {
-                drawArc(
+                drawRect(
                     color = colorScheme.primaryContainer,
-                    startAngle = 180f,
-                    sweepAngle = 180f,
-                    useCenter = true
+                    topLeft = Offset(0f, 0f),
+                    size = Size(size.width, size.height / 2)
                 )
-                drawArc(
+                drawRect(
                     color = colorScheme.tertiaryContainer,
-                    startAngle = 0f,
-                    sweepAngle = 180f,
-                    useCenter = true
+                    topLeft = Offset(0f, size.height / 2),
+                    size = Size(size.width, size.height / 2)
                 )
             }
 
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .background(colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
+            val scale by animateFloatAsState(
+                targetValue = if (isSelected) 1.1f else 1.0f,
+                label = "colorButtonScale"
+            )
+            Box(
+                modifier = Modifier.graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = option.name,
-                        tint = colorScheme.onPrimary,
-                        modifier = Modifier.size(16.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .border(2.dp, colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colorScheme.onPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+                AnimatedVisibility(
+                    visible = !isSelected,
+                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(colorScheme.primary, CircleShape)
                     )
                 }
             }
@@ -562,12 +592,42 @@ private fun ColorButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ThemePreviewCard(
     appSettings: AppSettings,
-    uiState: DacUiState
+    uiState: DacUiState,
+    isDark: Boolean,
+    isAmoled: Boolean
 ) {
     val context = LocalContext.current
+    val previewScheme = when {
+        appSettings.keyColor == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            rememberDynamicColorScheme(
+                seedColor = colorResource(id = android.R.color.system_accent1_500),
+                isDark = isDark,
+                isAmoled = isAmoled,
+                style = PaletteStyle.TonalSpot
+            )
+        }
+        appSettings.keyColor != 0 -> {
+            rememberDynamicColorScheme(
+                seedColor = Color(appSettings.keyColor),
+                isDark = isDark,
+                isAmoled = isAmoled,
+                style = PaletteStyle.TonalSpot
+            )
+        }
+        else -> {
+            if (isDark) darkColorScheme() else expressiveLightColorScheme()
+        }
+    }
+
+    val previewBg = previewScheme.surfaceContainerLowest
+    val previewCardSurface = previewScheme.surfaceContainerHigh
+    val previewText = previewScheme.onSurface
+    val previewSubText = previewScheme.onSurfaceVariant
+
     val imageLoader = remember {
         ImageLoader.Builder(context)
             .components {
@@ -584,30 +644,33 @@ private fun ThemePreviewCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+            containerColor = expressiveSurfaceColor()
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "Live Theme & Layout Preview",
+                text = "Preview",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
             )
 
-            Box(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.background,
-                        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-                    )
-                    .padding(top = 14.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = previewBg,
+                border = BorderStroke(1.dp, previewScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                ) {
                     Column(
                         modifier = Modifier
-                            .padding(horizontal = 14.dp)
+                            .padding(horizontal = 12.dp)
                             .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -639,7 +702,7 @@ private fun ThemePreviewCard(
                                         .weight(1f)
                                         .height(48.dp),
                                     shape = RoundedCornerShape(14.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                    color = previewScheme.secondaryContainer
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp),
@@ -649,7 +712,7 @@ private fun ThemePreviewCard(
                                         Icon(
                                             imageVector = Icons.Filled.GraphicEq,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            tint = previewScheme.onSecondaryContainer,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Column {
@@ -657,12 +720,12 @@ private fun ThemePreviewCard(
                                                 text = if (uiState.isConnected) "Connected" else "Magivant DAC",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                color = previewScheme.onSecondaryContainer
                                             )
                                             Text(
                                                 text = uiState.sampleRateText,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                                color = previewScheme.onSecondaryContainer.copy(alpha = 0.85f)
                                             )
                                         }
                                     }
@@ -673,7 +736,7 @@ private fun ThemePreviewCard(
                                         .weight(1f)
                                         .height(48.dp),
                                     shape = RoundedCornerShape(14.dp),
-                                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                                    color = previewCardSurface
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(horizontal = 10.dp),
@@ -682,12 +745,13 @@ private fun ThemePreviewCard(
                                         Text(
                                             text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
                                             style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            color = previewText
                                         )
                                         Text(
                                             text = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain),
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = previewSubText
                                         )
                                     }
                                 }
@@ -701,7 +765,7 @@ private fun ThemePreviewCard(
                             ) {
                                 Card(
                                     modifier = Modifier
-                                        .weight(0.6f)
+                                        .weight(0.58f)
                                         .height(94.dp),
                                     shape = RoundedCornerShape(14.dp)
                                 ) {
@@ -719,7 +783,7 @@ private fun ThemePreviewCard(
 
                                 Column(
                                     modifier = Modifier
-                                        .weight(0.4f)
+                                        .weight(0.42f)
                                         .fillMaxHeight(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
@@ -728,22 +792,22 @@ private fun ThemePreviewCard(
                                             .fillMaxWidth()
                                             .weight(1f),
                                         shape = RoundedCornerShape(14.dp),
-                                        color = MaterialTheme.colorScheme.secondaryContainer
+                                        color = previewScheme.secondaryContainer
                                     ) {
                                         Column(
                                             modifier = Modifier.padding(horizontal = 10.dp),
                                             verticalArrangement = Arrangement.Center
                                         ) {
                                             Text(
-                                                text = if (uiState.isConnected) "CS43198 Live" else "CS43198 Ready",
+                                                text = if (uiState.isConnected) "Connected" else "Standby",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                color = previewScheme.onSecondaryContainer
                                             )
                                             Text(
                                                 text = uiState.sampleRateText,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                                                color = previewScheme.onSecondaryContainer.copy(alpha = 0.85f)
                                             )
                                         }
                                     }
@@ -753,7 +817,7 @@ private fun ThemePreviewCard(
                                             .fillMaxWidth()
                                             .weight(1f),
                                         shape = RoundedCornerShape(14.dp),
-                                        color = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                                        color = previewCardSurface
                                     ) {
                                         Column(
                                             modifier = Modifier.padding(horizontal = 10.dp),
@@ -762,12 +826,13 @@ private fun ThemePreviewCard(
                                             Text(
                                                 text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = previewText
                                             )
                                             Text(
                                                 text = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = previewSubText
                                             )
                                         }
                                     }
@@ -787,8 +852,7 @@ private fun ThemePreviewCard(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
-                                tonalElevation = 3.dp
+                                color = previewCardSurface
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -798,22 +862,22 @@ private fun ThemePreviewCard(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(50))
-                                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                                            .background(previewScheme.secondaryContainer)
                                             .padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
                                                 imageVector = Icons.Filled.GraphicEq,
                                                 contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                tint = previewScheme.onSecondaryContainer,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = "DAC Control",
+                                                text = "DAC",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                color = previewScheme.onSecondaryContainer
                                             )
                                         }
                                     }
@@ -821,7 +885,7 @@ private fun ThemePreviewCard(
                                     Icon(
                                         imageVector = Icons.Outlined.Tune,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = previewSubText,
                                         modifier = Modifier
                                             .padding(horizontal = 8.dp)
                                             .size(16.dp)
@@ -830,7 +894,7 @@ private fun ThemePreviewCard(
                                     Icon(
                                         imageVector = Icons.Outlined.Palette,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = previewSubText,
                                         modifier = Modifier
                                             .padding(horizontal = 8.dp)
                                             .size(16.dp)
@@ -839,43 +903,43 @@ private fun ThemePreviewCard(
                             }
                         }
                     } else {
-                        NavigationBar(
-                            modifier = Modifier.height(52.dp),
-                            windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+                        Surface(
+                            color = previewCardSurface,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
                         ) {
-                            NavigationBarItem(
-                                selected = true,
-                                onClick = {},
-                                icon = {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(previewScheme.secondaryContainer)
+                                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                                ) {
                                     Icon(
-                                        Icons.Filled.GraphicEq,
+                                        imageVector = Icons.Filled.GraphicEq,
                                         contentDescription = null,
-                                        modifier = Modifier.requiredSize(18.dp)
+                                        tint = previewScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
-                            )
-                            NavigationBarItem(
-                                selected = false,
-                                onClick = {},
-                                icon = {
-                                    Icon(
-                                        Icons.Outlined.Tune,
-                                        contentDescription = null,
-                                        modifier = Modifier.requiredSize(18.dp)
-                                    )
-                                }
-                            )
-                            NavigationBarItem(
-                                selected = false,
-                                onClick = {},
-                                icon = {
-                                    Icon(
-                                        Icons.Outlined.Palette,
-                                        contentDescription = null,
-                                        modifier = Modifier.requiredSize(18.dp)
-                                    )
-                                }
-                            )
+                                Icon(
+                                    imageVector = Icons.Outlined.Tune,
+                                    contentDescription = null,
+                                    tint = previewSubText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Icon(
+                                    imageVector = Icons.Outlined.Palette,
+                                    contentDescription = null,
+                                    tint = previewSubText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
