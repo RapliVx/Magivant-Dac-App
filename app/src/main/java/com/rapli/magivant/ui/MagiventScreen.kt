@@ -2,13 +2,21 @@ package com.rapli.magivant.ui
 
 import android.content.Context
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -65,6 +73,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -147,18 +156,56 @@ fun MagivantScreen(
     val cs = MaterialTheme.colorScheme
 
     var currentTab by rememberSaveable { mutableStateOf(MagivantTab.HOME) }
-    var showBottomBar by remember { mutableStateOf(true) }
+    var isScrollingDown by remember { mutableStateOf(false) }
     var showNewPresetDialog by remember { mutableStateOf(false) }
     var presetToExport by remember { mutableStateOf<DacPreset?>(null) }
 
+    LaunchedEffect(currentTab) {
+        isScrollingDown = false
+    }
+
+    BackHandler(enabled = currentTab != MagivantTab.HOME) {
+        currentTab = MagivantTab.HOME
+    }
+
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val delta = available.y
-                if (delta < -5f) {
-                    showBottomBar = false
-                } else if (delta > 5f) {
-                    showBottomBar = true
+            var scrollAccumulator = 0f
+
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (available.y > 0f) {
+                    if (scrollAccumulator < 0f) {
+                        scrollAccumulator = 0f
+                    }
+                    scrollAccumulator = (scrollAccumulator + available.y).coerceIn(0f, 200f)
+                    if (scrollAccumulator > 20f) {
+                        isScrollingDown = false
+                        scrollAccumulator = 0f
+                    }
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (consumed.y < 0f) {
+                    if (scrollAccumulator > 0f) {
+                        scrollAccumulator = 0f
+                    }
+                    scrollAccumulator = (scrollAccumulator + consumed.y).coerceIn(-200f, 0f)
+                    if (scrollAccumulator < -80f) {
+                        isScrollingDown = true
+                        scrollAccumulator = 0f
+                    }
+                } else if (consumed.y > 0f || available.y > 0f) {
+                    isScrollingDown = false
+                    scrollAccumulator = 0f
                 }
                 return Offset.Zero
             }
@@ -250,10 +297,15 @@ fun MagivantScreen(
                             Icon(
                                 imageVector = Icons.Filled.Usb,
                                 contentDescription = null,
+                                tint = cs.onSecondaryContainer,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Scan USB", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                text = "Scan USB",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = cs.onSecondaryContainer
+                            )
                         }
                     }
                 },
@@ -264,6 +316,44 @@ fun MagivantScreen(
                 )
             )
         },
+        bottomBar = {
+            if (!appSettings.isFloatingNavbar) {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ) + expandVertically(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ) + shrinkVertically(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    )
+                ) {
+                    MagivantBottomBar(
+                        currentTab = currentTab,
+                        onTabSelected = { currentTab = it },
+                        isFloating = false,
+                        isFloatingGestureEnabled = appSettings.isFloatingNavbarGesture
+                    )
+                }
+            }
+        },
         contentWindowInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal
         )
@@ -271,12 +361,15 @@ fun MagivantScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .nestedScroll(nestedScrollConnection)
         ) {
-            val bottomPadding = if (appSettings.isFloatingNavbar) 96.dp else 80.dp
+            val bottomPadding = if (appSettings.isFloatingNavbar) 96.dp else 16.dp
 
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
                 AnimatedVisibility(
                     visible = state.errorMessage != null,
                     enter = fadeIn() + slideInVertically(),
@@ -297,7 +390,16 @@ fun MagivantScreen(
                 AnimatedContent(
                     targetState = currentTab,
                     transitionSpec = {
-                        fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                        (fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
+                            scaleIn(
+                                initialScale = 0.92f,
+                                animationSpec = spring(dampingRatio = 0.8f, stiffness = 350f)
+                            )) togetherWith
+                            (fadeOut(animationSpec = tween(200)) +
+                                scaleOut(
+                                    targetScale = 0.96f,
+                                    animationSpec = tween(200)
+                                ))
                     },
                     label = "magivantTabContent",
                     modifier = Modifier.weight(1f)
@@ -392,18 +494,31 @@ fun MagivantScreen(
                 }
             }
 
-            AnimatedVisibility(
-                visible = showBottomBar,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut()
-            ) {
-                MagivantBottomBar(
-                    currentTab = currentTab,
-                    onTabSelected = { currentTab = it },
-                    isFloating = appSettings.isFloatingNavbar,
-                    isFloatingGestureEnabled = appSettings.isFloatingNavbarGesture
-                )
+            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                AnimatedVisibility(
+                    visible = appSettings.isFloatingNavbar && !isScrollingDown,
+                    enter = slideInVertically(
+                        initialOffsetY = { it * 2 },
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    ) + fadeIn(tween(400)),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it * 2 },
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    ) + fadeOut(tween(400))
+                ) {
+                    MagivantBottomBar(
+                        currentTab = currentTab,
+                        onTabSelected = { currentTab = it },
+                        isFloating = true,
+                        isFloatingGestureEnabled = appSettings.isFloatingNavbarGesture
+                    )
+                }
             }
         }
     }
@@ -920,7 +1035,7 @@ private fun DisconnectedQuickCard(
                 )
             }
             Button(onClick = onScanUsb) {
-                Text("Scan USB")
+                Text("Scan USB", color = cs.onPrimary)
             }
         }
     }
@@ -991,44 +1106,58 @@ private fun VolumeAndBalanceCard(
                         enabled = uiState.isConnected
                     )
 
+                    val stepButtonEnabled = uiState.isConnected && uiState.rawVolumeReg < 0xFF
+                    val boostButtonEnabled = uiState.isConnected && uiState.rawVolumeReg > 0x00
+                    val muteButtonEnabled = uiState.isConnected && uiState.rawVolumeReg != 0xFF
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = { onAdjustHalfDb(-1) },
-                            enabled = uiState.isConnected && uiState.rawVolumeReg < 0xFF,
+                            enabled = stepButtonEnabled,
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Remove,
                                 contentDescription = "Attenuate 0.5 dB",
+                                tint = if (stepButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("-0.5 dB")
+                            Text(
+                                text = "-0.5 dB",
+                                color = if (stepButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
+                            )
                         }
 
                         FilledTonalButton(
                             onClick = { onVolumeChanged(0) },
-                            enabled = uiState.isConnected && uiState.rawVolumeReg != 0xFF,
+                            enabled = muteButtonEnabled,
                             modifier = Modifier.weight(0.9f)
                         ) {
-                            Text("Mute")
+                            Text(
+                                text = "Mute",
+                                color = if (muteButtonEnabled) cs.onSecondaryContainer else cs.onSurfaceVariant.copy(alpha = 0.38f)
+                            )
                         }
 
                         OutlinedButton(
                             onClick = { onAdjustHalfDb(1) },
-                            enabled = uiState.isConnected && uiState.rawVolumeReg > 0x00,
+                            enabled = boostButtonEnabled,
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
                                 contentDescription = "Boost 0.5 dB",
+                                tint = if (boostButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("+0.5 dB")
+                            Text(
+                                text = "+0.5 dB",
+                                color = if (boostButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
+                            )
                         }
                     }
                 }
@@ -1077,30 +1206,42 @@ private fun VolumeAndBalanceCard(
                         enabled = uiState.isConnected
                     )
 
+                    val leftEnabled = uiState.isConnected && uiState.balanceBaseValue > -10
+                    val centerEnabled = uiState.isConnected && uiState.balanceBaseValue != 0
+                    val rightEnabled = uiState.isConnected && uiState.balanceBaseValue < 10
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = { onBalanceChanged((uiState.balanceBaseValue - 1).coerceAtLeast(-10)) },
-                            enabled = uiState.isConnected && uiState.balanceBaseValue > -10,
+                            enabled = leftEnabled,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Left Bias")
+                            Text(
+                                text = "Left Bias",
+                                color = if (leftEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
+                            )
                         }
                         FilledTonalButton(
                             onClick = { onBalanceChanged(0) },
-                            enabled = uiState.isConnected && uiState.balanceBaseValue != 0,
+                            enabled = centerEnabled,
                             modifier = Modifier.weight(0.9f)
                         ) {
-                            Text("0.0 dB")
+                            Text(
+                                text = "0.0 dB",
+                                color = if (centerEnabled) cs.onSecondaryContainer else cs.onSurfaceVariant.copy(alpha = 0.38f)
+                            )
                         }
                         OutlinedButton(
                             onClick = { onBalanceChanged((uiState.balanceBaseValue + 1).coerceAtMost(10)) },
-                            enabled = uiState.isConnected && uiState.balanceBaseValue < 10,
+                            enabled = rightEnabled,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Right Bias")
+                            Text(
+                                text = "Right Bias",
+                                color = if (rightEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
+                            )
                         }
                     }
                 }

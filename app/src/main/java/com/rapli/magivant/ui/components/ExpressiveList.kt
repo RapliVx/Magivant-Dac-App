@@ -65,12 +65,12 @@ private val bottomShape = RoundedCornerShape(
 )
 private val singleShape = RoundedCornerShape(largeRadius)
 
-// Uses higher tonal elevation in Light Mode so segmented cards have clear pastel color separation against the light background.
+// Uses tinted surfaceContainer in Light Mode so segmented cards have clear pastel color separation against the light background.
 @Composable
 fun expressiveSurfaceColor(): Color {
     val cs = MaterialTheme.colorScheme
     return if (cs.background.luminance() > 0.5f) {
-        cs.surfaceColorAtElevation(4.dp)
+        cs.surfaceContainer
     } else {
         cs.surfaceColorAtElevation(1.dp)
     }

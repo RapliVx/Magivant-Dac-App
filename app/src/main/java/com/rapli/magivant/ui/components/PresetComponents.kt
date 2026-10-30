@@ -221,7 +221,8 @@ fun MagivantPresetScreen(
                                 ) {
                                     Text(
                                         text = if (isActive) "Active" else "Apply",
-                                        style = MaterialTheme.typography.labelMedium
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = cs.onSecondaryContainer
                                     )
                                 }
                             }
@@ -287,10 +288,11 @@ private fun PresetActionHeader(
                         Icon(
                             imageVector = Icons.Filled.Delete,
                             contentDescription = null,
+                            tint = cs.onPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Delete")
+                        Text("Delete", color = cs.onPrimary)
                     }
                     if (selectedCount == 1) {
                         OutlinedButton(
@@ -300,10 +302,11 @@ private fun PresetActionHeader(
                             Icon(
                                 imageVector = Icons.Filled.FileUpload,
                                 contentDescription = null,
+                                tint = cs.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Export JSON")
+                            Text("Export JSON", color = cs.primary)
                         }
                     }
                 }
@@ -332,10 +335,11 @@ private fun PresetActionHeader(
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = null,
+                            tint = cs.onPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Preset")
+                        Text("Save Preset", color = cs.onPrimary)
                     }
                     FilledTonalButton(
                         onClick = onImportClicked
@@ -343,15 +347,16 @@ private fun PresetActionHeader(
                         Icon(
                             imageVector = Icons.Filled.FileDownload,
                             contentDescription = null,
+                            tint = cs.onSecondaryContainer,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Import")
+                        Text("Import", color = cs.onSecondaryContainer)
                     }
                     OutlinedButton(
                         onClick = onExportCurrentClicked
                     ) {
-                        Text("Export")
+                        Text("Export", color = cs.primary)
                     }
                 }
             }
@@ -401,10 +406,10 @@ private fun EmptyPresetStateCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(onClick = onNewClicked) {
-                    Text("Save Current State")
+                    Text("Save Current State", color = cs.onPrimary)
                 }
                 OutlinedButton(onClick = onImportClicked) {
-                    Text("Import JSON")
+                    Text("Import JSON", color = cs.primary)
                 }
             }
         }
@@ -442,7 +447,7 @@ fun NewPresetInputDialog(
                 },
                 enabled = presetName.isNotBlank()
             ) {
-                Text("Save")
+                Text("Save", color = cs.onPrimary)
             }
         },
         dismissButton = {

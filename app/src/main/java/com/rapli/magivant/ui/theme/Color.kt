@@ -2,21 +2,21 @@ package com.rapli.magivant.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Red = Color(0xFFF44336)
-val Pink = Color(0xFFE91E63)
-val Purple = Color(0xFF9C27B0)
-val DeepPurple = Color(0xFF673AB7)
-val Indigo = Color(0xFF3F51B5)
-val Blue = Color(0xFF2196F3)
-val Cyan = Color(0xFF00BCD4)
+val Blue = Color(0xFF1A73E8)
+val Red = Color(0xFFEA4335)
+val Green = Color(0xFF34A853)
+val Purple = Color(0xFF9333EA)
+val Orange = Color(0xFFFB8C00)
 val Teal = Color(0xFF009688)
-val Green = Color(0xFF4CAF50)
-val Yellow = Color(0xFFFFEB3B)
-val Amber = Color(0xFFFFC107)
-val Orange = Color(0xFFFF9800)
-val Brown = Color(0xFF795548)
-val BlueGrey = Color(0xFF607D8B)
+val Pink = Color(0xFFE91E63)
 val Sakura = Color(0xFFFF9CA8)
+val Indigo = Color(0xFF3F51B5)
+val Cyan = Color(0xFF00BCD4)
+val Amber = Color(0xFFFFC107)
+val DeepPurple = Color(0xFF673AB7)
+val Brown = Color(0xFF795548)
+val Yellow = Color(0xFFFFEB3B)
+val BlueGrey = Color(0xFF607D8B)
 
 data class KeyColorOption(
     val name: String,
@@ -24,19 +24,19 @@ data class KeyColorOption(
 )
 
 val keyColorOptions = listOf(
+    KeyColorOption("Blue", Blue),
     KeyColorOption("Red", Red),
+    KeyColorOption("Green", Green),
+    KeyColorOption("Purple", Purple),
+    KeyColorOption("Orange", Orange),
+    KeyColorOption("Teal", Teal),
     KeyColorOption("Pink", Pink),
     KeyColorOption("Sakura", Sakura),
-    KeyColorOption("Purple", Purple),
-    KeyColorOption("Deep Purple", DeepPurple),
     KeyColorOption("Indigo", Indigo),
-    KeyColorOption("Blue", Blue),
     KeyColorOption("Cyan", Cyan),
-    KeyColorOption("Teal", Teal),
-    KeyColorOption("Green", Green),
-    KeyColorOption("Yellow", Yellow),
     KeyColorOption("Amber", Amber),
-    KeyColorOption("Orange", Orange),
+    KeyColorOption("Deep Purple", DeepPurple),
     KeyColorOption("Brown", Brown),
+    KeyColorOption("Yellow", Yellow),
     KeyColorOption("Blue Grey", BlueGrey)
 )

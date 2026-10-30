@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -64,8 +65,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -211,9 +210,7 @@ fun MagivantSettingsScreen(
     ) {
         ThemePreviewCard(
             appSettings = appSettings,
-            uiState = uiState,
-            isDark = isDark,
-            isAmoled = isAmoled
+            uiState = uiState
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -271,6 +268,7 @@ fun MagivantSettingsScreen(
                             onCheckedChange = {
                                 if (it) onUpdateThemeMode(mode)
                             },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                             colors = ToggleButtonDefaults.toggleButtonColors(
                                 containerColor = cs.surfaceContainerHighest,
                                 contentColor = cs.onSurface,
@@ -287,20 +285,22 @@ fun MagivantSettingsScreen(
                             }
                         ) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = label,
                                     tint = if (isChecked) cs.onPrimary else cs.onSurface,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = label,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isChecked) cs.onPrimary else cs.onSurface,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -467,7 +467,7 @@ fun MagivantSettingsScreen(
                             FilledTonalButton(
                                 onClick = { onUpdateDpiScale(tempDpiScale) }
                             ) {
-                                Text("Apply")
+                                Text("Apply", color = cs.onSecondaryContainer)
                             }
                         }
                     }
@@ -491,7 +491,7 @@ private fun ColorButton(
                 seedColor = colorResource(id = android.R.color.system_accent1_500),
                 isDark = isDark,
                 isAmoled = isAmoled,
-                style = PaletteStyle.TonalSpot
+                style = PaletteStyle.Vibrant
             )
         } else {
             MaterialTheme.colorScheme
@@ -501,7 +501,7 @@ private fun ColorButton(
             seedColor = color,
             isDark = isDark,
             isAmoled = isAmoled,
-            style = PaletteStyle.TonalSpot
+            style = PaletteStyle.Vibrant
         )
     }
 
@@ -596,34 +596,12 @@ private fun ColorButton(
 @Composable
 private fun ThemePreviewCard(
     appSettings: AppSettings,
-    uiState: DacUiState,
-    isDark: Boolean,
-    isAmoled: Boolean
+    uiState: DacUiState
 ) {
     val context = LocalContext.current
-    val previewScheme = when {
-        appSettings.keyColor == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            rememberDynamicColorScheme(
-                seedColor = colorResource(id = android.R.color.system_accent1_500),
-                isDark = isDark,
-                isAmoled = isAmoled,
-                style = PaletteStyle.TonalSpot
-            )
-        }
-        appSettings.keyColor != 0 -> {
-            rememberDynamicColorScheme(
-                seedColor = Color(appSettings.keyColor),
-                isDark = isDark,
-                isAmoled = isAmoled,
-                style = PaletteStyle.TonalSpot
-            )
-        }
-        else -> {
-            if (isDark) darkColorScheme() else expressiveLightColorScheme()
-        }
-    }
+    val previewScheme = MaterialTheme.colorScheme
 
-    val previewBg = previewScheme.surfaceContainerLowest
+    val previewBg = previewScheme.background
     val previewCardSurface = previewScheme.surfaceContainerHigh
     val previewText = previewScheme.onSurface
     val previewSubText = previewScheme.onSurfaceVariant
