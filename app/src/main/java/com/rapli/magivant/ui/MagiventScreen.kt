@@ -72,6 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -1093,11 +1094,14 @@ private fun VolumeAndBalanceCard(
                         }
                     }
 
-                    Slider(
+                    val volumeSliderState = rememberSliderState(
                         value = uiState.volumeIndex.toFloat(),
-                        onValueChange = { onVolumeChanged(it.roundToInt()) },
-                        valueRange = 0f..uiState.maxVolumeIndex.toFloat(),
                         steps = (uiState.maxVolumeIndex - 1).coerceAtLeast(0),
+                        trackRange = 0f..uiState.maxVolumeIndex.toFloat()
+                    )
+                    Slider(
+                        state = volumeSliderState,
+                        onValueChange = { onVolumeChanged(it.roundToInt()) },
                         enabled = uiState.isConnected
                     )
 
@@ -1182,11 +1186,14 @@ private fun VolumeAndBalanceCard(
                         }
                     }
 
-                    Slider(
+                    val balanceSliderState = rememberSliderState(
                         value = uiState.balanceBaseValue.toFloat(),
-                        onValueChange = { onBalanceChanged(it.roundToInt()) },
-                        valueRange = -10f..10f,
                         steps = 19,
+                        trackRange = -10f..10f
+                    )
+                    Slider(
+                        state = balanceSliderState,
+                        onValueChange = { onBalanceChanged(it.roundToInt()) },
                         enabled = uiState.isConnected
                     )
 

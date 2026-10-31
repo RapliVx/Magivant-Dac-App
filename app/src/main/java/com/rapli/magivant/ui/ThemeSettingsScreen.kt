@@ -71,6 +71,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.expressiveLightColorScheme
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -403,11 +404,14 @@ fun MagivantSettingsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = cs.onSurfaceVariant
                                 )
-                                Slider(
+                                val maxVolumeSliderState = rememberSliderState(
                                     value = uiState.maxVolumeIndex.toFloat(),
-                                    onValueChange = { onUpdateMaxVolumeLimit(it.roundToInt()) },
-                                    valueRange = 10f..60f,
-                                    steps = 49
+                                    steps = 49,
+                                    trackRange = 10f..60f
+                                )
+                                Slider(
+                                    state = maxVolumeSliderState,
+                                    onValueChange = { onUpdateMaxVolumeLimit(it.roundToInt()) }
                                 )
                             }
                         },
@@ -442,11 +446,14 @@ fun MagivantSettingsScreen(
                     supportingContent = {
                         Column {
                             Text("${(tempDpiScale * 100).toInt()}%", color = cs.onSurfaceVariant)
-                            Slider(
+                            val scaleSliderState = rememberSliderState(
                                 value = tempDpiScale,
-                                onValueChange = { tempDpiScale = it },
-                                valueRange = 0.75f..1.25f,
-                                steps = 9
+                                steps = 9,
+                                trackRange = 0.75f..1.25f
+                            )
+                            Slider(
+                                state = scaleSliderState,
+                                onValueChange = { tempDpiScale = it }
                             )
                         }
                     },
