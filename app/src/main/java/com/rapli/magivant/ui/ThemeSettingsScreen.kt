@@ -491,7 +491,7 @@ private fun ColorButton(
                 seedColor = colorResource(id = android.R.color.system_accent1_500),
                 isDark = isDark,
                 isAmoled = isAmoled,
-                style = PaletteStyle.Vibrant
+                style = PaletteStyle.TonalSpot
             )
         } else {
             MaterialTheme.colorScheme
@@ -501,7 +501,7 @@ private fun ColorButton(
             seedColor = color,
             isDark = isDark,
             isAmoled = isAmoled,
-            style = PaletteStyle.Vibrant
+            style = PaletteStyle.TonalSpot
         )
     }
 

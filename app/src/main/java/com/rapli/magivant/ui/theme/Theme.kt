@@ -24,7 +24,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -137,7 +136,7 @@ fun MAGIVANTDACTheme(
     }
 
     val colorScheme = remember(baseScheme, darkTheme, amoledMode) {
-        buildContrastSafeScheme(
+        buildMaterial3Scheme(
             scheme = baseScheme,
             isDark = darkTheme,
             isAmoled = amoledMode
@@ -199,139 +198,48 @@ private fun disableForceDarkRecursively(view: View?) {
     }
 }
 
-// Keeps dark text tokens in Tone 28-32 (luminance >= 0.068) with seed chroma so OEM Force-Dark hooks never invert them to white.
-private fun liftDarkInk(
-    color: Color,
-    tintSource: Color,
-    lightAnchor: Color,
-    targetMinLum: Float = 0.068f,
-    mixWeight: Float = 0.22f
-): Color {
-    var result = lerp(color, tintSource, mixWeight)
-    if (result.luminance() < targetMinLum) {
-        var lo = 0f
-        var hi = 1f
-        repeat(12) {
-            val mid = (lo + hi) * 0.5f
-            val candidate = lerp(result, lightAnchor, mid)
-            if (candidate.luminance() >= targetMinLum) {
-                hi = mid
-            } else {
-                lo = mid
-            }
-        }
-        result = lerp(result, lightAnchor, hi)
-    }
-    return result
-}
-
-private fun buildContrastSafeScheme(
+private fun buildMaterial3Scheme(
     scheme: ColorScheme,
     isDark: Boolean,
     isAmoled: Boolean
 ): ColorScheme {
     return if (!isDark) {
-        val lightBg = scheme.surfaceContainerLowest
-        val lightSurface = lerp(scheme.surfaceContainerLow, scheme.secondaryContainer, 0.22f)
-        val containerLow = lerp(scheme.surfaceContainerLow, scheme.secondaryContainer, 0.24f)
-        val container = lerp(scheme.surfaceContainer, scheme.secondaryContainer, 0.34f)
-        val containerHigh = lerp(scheme.surfaceContainerHigh, scheme.secondaryContainer, 0.42f)
-        val containerHighest = lerp(scheme.surfaceContainerHighest, scheme.secondaryContainer, 0.50f)
-        val variantSurface = lerp(scheme.surfaceVariant, scheme.secondaryContainer, 0.42f)
-
-        val primaryInk = liftDarkInk(
-            color = scheme.onSecondaryContainer,
-            tintSource = scheme.primary,
-            lightAnchor = lightBg,
-            targetMinLum = 0.068f,
-            mixWeight = 0.20f
-        )
-        val secondaryInk = liftDarkInk(
-            color = scheme.onSurfaceVariant,
-            tintSource = scheme.primary,
-            lightAnchor = lightBg,
-            targetMinLum = 0.072f,
-            mixWeight = 0.22f
-        )
-        val onPrimaryCont = liftDarkInk(
-            color = scheme.onPrimaryContainer,
-            tintSource = scheme.primary,
-            lightAnchor = scheme.primaryContainer,
-            targetMinLum = 0.068f,
-            mixWeight = 0.18f
-        )
-        val onSecondaryCont = liftDarkInk(
-            color = scheme.onSecondaryContainer,
-            tintSource = scheme.primary,
-            lightAnchor = scheme.secondaryContainer,
-            targetMinLum = 0.068f,
-            mixWeight = 0.15f
-        )
-        val onTertiaryCont = liftDarkInk(
-            color = scheme.onTertiaryContainer,
-            tintSource = scheme.tertiary,
-            lightAnchor = scheme.tertiaryContainer,
-            targetMinLum = 0.068f,
-            mixWeight = 0.18f
-        )
+        val blackText = Color(0xFF000000)
+        val charcoalText = Color(0xFF1C1B1F)
 
         scheme.copy(
-            background = lightBg,
-            surface = lightSurface,
-            surfaceVariant = variantSurface,
-            surfaceContainerLowest = lightBg,
-            surfaceContainerLow = containerLow,
-            surfaceContainer = container,
-            surfaceContainerHigh = containerHigh,
-            surfaceContainerHighest = containerHighest,
+            background = scheme.surfaceContainerLowest,
+            surface = scheme.surface,
+            surfaceContainerLowest = scheme.surfaceContainerLowest,
+            surfaceContainerLow = scheme.surfaceContainerLow,
+            surfaceContainer = scheme.surfaceContainer,
+            surfaceContainerHigh = scheme.surfaceContainerHigh,
+            surfaceContainerHighest = scheme.surfaceContainerHighest,
+            surfaceVariant = scheme.surfaceVariant,
             surfaceTint = scheme.primary,
-            onBackground = primaryInk,
-            onSurface = primaryInk,
-            onSurfaceVariant = secondaryInk,
-            onPrimaryContainer = onPrimaryCont,
-            onSecondaryContainer = onSecondaryCont,
-            onTertiaryContainer = onTertiaryCont
+            onBackground = blackText,
+            onSurface = blackText,
+            onSurfaceVariant = charcoalText,
+            onPrimaryContainer = blackText,
+            onSecondaryContainer = blackText,
+            onTertiaryContainer = blackText,
+            outline = scheme.outline,
+            outlineVariant = scheme.outlineVariant
         )
     } else {
         val darkBg = if (isAmoled) scheme.surfaceContainerLowest else scheme.background
         val darkSurface = if (isAmoled) scheme.surfaceContainerLowest else scheme.surface
-        val safeOnPrimary = liftDarkInk(
-            color = scheme.onPrimary,
-            tintSource = scheme.primary,
-            lightAnchor = scheme.primary,
-            targetMinLum = 0.068f,
-            mixWeight = 0.14f
-        )
-        val safeOnSecondary = liftDarkInk(
-            color = scheme.onSecondary,
-            tintSource = scheme.secondary,
-            lightAnchor = scheme.secondary,
-            targetMinLum = 0.068f,
-            mixWeight = 0.14f
-        )
-        val safeOnTertiary = liftDarkInk(
-            color = scheme.onTertiary,
-            tintSource = scheme.tertiary,
-            lightAnchor = scheme.tertiary,
-            targetMinLum = 0.068f,
-            mixWeight = 0.14f
-        )
-        val safeInverseOnSurface = liftDarkInk(
-            color = scheme.inverseOnSurface,
-            tintSource = scheme.primary,
-            lightAnchor = scheme.inverseSurface,
-            targetMinLum = 0.068f,
-            mixWeight = 0.14f
-        )
+        val onPrimaryDark = if (scheme.primary.luminance() > 0.4f) Color(0xFF000000) else scheme.onPrimary
+        val onSecondaryDark = if (scheme.secondary.luminance() > 0.4f) Color(0xFF000000) else scheme.onSecondary
+        val onTertiaryDark = if (scheme.tertiary.luminance() > 0.4f) Color(0xFF000000) else scheme.onTertiary
 
         scheme.copy(
             background = darkBg,
             surface = darkSurface,
             surfaceTint = scheme.primary,
-            onPrimary = safeOnPrimary,
-            onSecondary = safeOnSecondary,
-            onTertiary = safeOnTertiary,
-            inverseOnSurface = safeInverseOnSurface
+            onPrimary = onPrimaryDark,
+            onSecondary = onSecondaryDark,
+            onTertiary = onTertiaryDark
         )
     }
 }
