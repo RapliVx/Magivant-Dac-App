@@ -4,19 +4,14 @@ import android.app.Activity
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
@@ -128,18 +123,9 @@ fun MAGIVANTDACTheme(
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        motionScheme = MotionScheme.expressive()
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = colorScheme.background,
-            contentColor = colorScheme.onBackground
-        ) {
-            CompositionLocalProvider(LocalContentColor provides colorScheme.onSurface) {
-                content()
-            }
-        }
-    }
+        motionScheme = MotionScheme.expressive(),
+        content = content
+    )
 }
 
 @Composable

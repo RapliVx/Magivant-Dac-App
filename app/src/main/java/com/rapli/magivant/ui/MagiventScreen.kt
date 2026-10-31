@@ -72,6 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -106,7 +107,7 @@ import com.rapli.magivant.ui.components.MagivantBottomBar
 import com.rapli.magivant.ui.components.MagivantPresetScreen
 import com.rapli.magivant.ui.components.MagivantTab
 import com.rapli.magivant.ui.components.NewPresetInputDialog
-import com.rapli.magivant.ui.components.expressiveSurfaceColor
+import com.rapli.magivant.ui.components.TonalCard
 import com.rapli.magivant.ui.theme.AppSettings
 import com.rapli.magivant.usb.Cs43198Spec
 import java.util.Locale
@@ -246,8 +247,6 @@ fun MagivantScreen(
     }
 
     Scaffold(
-        containerColor = cs.background,
-        contentColor = cs.onBackground,
         topBar = {
             TopAppBar(
                 title = {
@@ -260,7 +259,6 @@ fun MagivantScreen(
                             },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = cs.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -284,8 +282,7 @@ fun MagivantScreen(
                         IconButton(onClick = { viewModel.manualResync() }) {
                             Icon(
                                 imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Refresh Status",
-                                tint = cs.onSurface
+                                contentDescription = "Refresh Status"
                             )
                         }
                     } else {
@@ -297,23 +294,16 @@ fun MagivantScreen(
                             Icon(
                                 imageVector = Icons.Filled.Usb,
                                 contentDescription = null,
-                                tint = cs.onSecondaryContainer,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Scan USB",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = cs.onSecondaryContainer
+                                style = MaterialTheme.typography.labelMedium
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = cs.background,
-                    titleContentColor = cs.onSurface,
-                    actionIconContentColor = cs.onSurface
-                )
+                }
             )
         },
         bottomBar = {
@@ -531,13 +521,12 @@ private fun ErrorStatusBanner(
     onRetry: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Surface(
+    TonalCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer
+        containerColor = MaterialTheme.colorScheme.errorContainer
     ) {
         Row(
             modifier = Modifier
@@ -701,14 +690,14 @@ private fun MagivantStatusBanner(
     // Always use secondaryContainer for the primary status card so Light Mode retains rich accent color.
     val statusContainerColor = cs.secondaryContainer
     val statusContentColor = cs.onSecondaryContainer
-    val telemetryContainerColor = expressiveSurfaceColor()
+    val telemetryContainerColor = cs.surfaceColorAtElevation(2.dp)
 
     if (appSettings.isClassicBanner) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(
+            TonalCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(160.dp),
@@ -732,18 +721,20 @@ private fun MagivantStatusBanner(
                     .height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
+                TonalCard(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight()
-                        .clickable {
-                            if (!uiState.isConnected) onScanUsb()
-                        },
+                        .fillMaxHeight(),
                     shape = RoundedCornerShape(20.dp),
-                    color = statusContainerColor,
-                    contentColor = statusContentColor
+                    containerColor = statusContainerColor
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable {
+                                if (!uiState.isConnected) onScanUsb()
+                            }
+                    ) {
                         Icon(
                             imageVector = if (uiState.isConnected) Icons.Filled.GraphicEq else Icons.Filled.Usb,
                             contentDescription = null,
@@ -793,16 +784,18 @@ private fun MagivantStatusBanner(
                     }
                 }
 
-                Surface(
+                TonalCard(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight()
-                        .clickable { onOpenPresetsTab() },
+                        .fillMaxHeight(),
                     shape = RoundedCornerShape(20.dp),
-                    color = telemetryContainerColor,
-                    contentColor = cs.onSurface
+                    containerColor = telemetryContainerColor
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onOpenPresetsTab() }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = null,
@@ -835,7 +828,7 @@ private fun MagivantStatusBanner(
                                     if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = cs.onSurfaceVariant,
+                                color = cs.outline,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -851,7 +844,7 @@ private fun MagivantStatusBanner(
                 .height(200.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(
+            TonalCard(
                 modifier = Modifier
                     .weight(0.58f)
                     .fillMaxHeight(),
@@ -875,18 +868,20 @@ private fun MagivantStatusBanner(
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
+                TonalCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .clickable {
-                            if (!uiState.isConnected) onScanUsb()
-                        },
+                        .weight(1f),
                     shape = RoundedCornerShape(20.dp),
-                    color = statusContainerColor,
-                    contentColor = statusContentColor
+                    containerColor = statusContainerColor
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable {
+                                if (!uiState.isConnected) onScanUsb()
+                            }
+                    ) {
                         Icon(
                             imageVector = if (uiState.isConnected) Icons.Filled.GraphicEq else Icons.Filled.Usb,
                             contentDescription = null,
@@ -943,16 +938,18 @@ private fun MagivantStatusBanner(
                     }
                 }
 
-                Surface(
+                TonalCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .clickable { onOpenPresetsTab() },
+                        .weight(1f),
                     shape = RoundedCornerShape(20.dp),
-                    color = telemetryContainerColor,
-                    contentColor = cs.onSurface
+                    containerColor = telemetryContainerColor
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onOpenPresetsTab() }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = null,
@@ -986,7 +983,7 @@ private fun MagivantStatusBanner(
                             Text(
                                 text = if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = cs.onSurfaceVariant,
+                                color = cs.outline,
                                 maxLines = 1
                             )
                         }
@@ -1002,11 +999,9 @@ private fun DisconnectedQuickCard(
     onScanUsb: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
-    Surface(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = expressiveSurfaceColor(),
-        contentColor = cs.onSurface
+        shape = RoundedCornerShape(20.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1031,7 +1026,7 @@ private fun DisconnectedQuickCard(
                 Text(
                     text = "Connect the Magivant USB DAC and tap Scan USB.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant
+                    color = cs.outline
                 )
             }
             Button(onClick = onScanUsb) {

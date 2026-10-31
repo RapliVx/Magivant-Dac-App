@@ -1,8 +1,10 @@
 package com.rapli.magivant.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -10,27 +12,29 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -42,28 +46,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
-private val largeRadius = 20.dp
-private val smallRadius = 4.dp
+private val largeCorner = 20.dp
+private val smallCorner = 4.dp
 
 private val topShape = RoundedCornerShape(
-    topStart = largeRadius,
-    topEnd = largeRadius,
-    bottomStart = smallRadius,
-    bottomEnd = smallRadius
+    topStart = largeCorner,
+    topEnd = largeCorner,
+    bottomStart = smallCorner,
+    bottomEnd = smallCorner
 )
-private val middleShape = RoundedCornerShape(smallRadius)
+private val middleShape = RoundedCornerShape(smallCorner)
 private val bottomShape = RoundedCornerShape(
-    topStart = smallRadius,
-    topEnd = smallRadius,
-    bottomStart = largeRadius,
-    bottomEnd = largeRadius
+    topStart = smallCorner,
+    topEnd = smallCorner,
+    bottomStart = largeCorner,
+    bottomEnd = largeCorner
 )
-private val singleShape = RoundedCornerShape(largeRadius)
+private val singleShape = RoundedCornerShape(largeCorner)
 
 @Composable
 fun expressiveSurfaceColor(): Color {
@@ -71,15 +75,29 @@ fun expressiveSurfaceColor(): Color {
 }
 
 @Composable
+fun TonalCard(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
+    shape: Shape = RoundedCornerShape(20.dp),
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = shape
+    ) {
+        content()
+    }
+}
+
+// List Composable
+@Composable
 fun ExpressiveList(
     modifier: Modifier = Modifier,
     title: String = "",
-    content: List<@Composable () -> Unit>
+    content: List<@Composable () -> Unit>,
 ) {
     if (content.isEmpty()) return
-
-    val containerColor = expressiveSurfaceColor()
-    val contentColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier = modifier) {
         if (title.isNotEmpty()) {
@@ -87,13 +105,12 @@ fun ExpressiveList(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 4.dp)
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
             )
         }
-
         Column(
             modifier = Modifier.clip(
-                if (content.size == 1) singleShape else RoundedCornerShape(largeRadius)
+                if (content.size == 1) singleShape else RoundedCornerShape(largeCorner)
             ),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -104,15 +121,10 @@ fun ExpressiveList(
                     index == content.size - 1 -> bottomShape
                     else -> middleShape
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(containerColor)
+                Column(
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp), shape)
                 ) {
-                    CompositionLocalProvider(LocalContentColor provides contentColor) {
-                        itemContent()
-                    }
+                    itemContent()
                 }
             }
         }
@@ -125,45 +137,48 @@ fun <T> ExpressiveLazyList(
     items: List<T>,
     state: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    title: String = "",
     key: ((item: T) -> Any)? = null,
     header: (@Composable () -> Unit)? = null,
     itemContent: @Composable (index: Int, item: T) -> Unit
 ) {
-    val containerColor = expressiveSurfaceColor()
-    val contentColor = MaterialTheme.colorScheme.onSurface
-
-    LazyColumn(
-        state = state,
-        modifier = modifier,
-        contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        if (header != null) {
-            item {
-                Box(modifier = Modifier.padding(bottom = 6.dp)) {
-                    CompositionLocalProvider(LocalContentColor provides contentColor) {
+    Column(modifier = modifier) {
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
+        LazyColumn(
+            state = state,
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            contentPadding = contentPadding
+        ) {
+            if (header != null) {
+                item {
+                    Box(modifier = Modifier.padding(bottom = 6.dp)) {
                         header()
                     }
                 }
             }
-        }
-        itemsIndexed(
-            items = items,
-            key = if (key != null) { _, item -> key(item) } else null
-        ) { index, item ->
-            val shape = when {
-                items.size == 1 -> singleShape
-                index == 0 -> topShape
-                index == items.size - 1 -> bottomShape
-                else -> middleShape
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(containerColor)
-            ) {
-                CompositionLocalProvider(LocalContentColor provides contentColor) {
+            itemsIndexed(
+                items = items,
+                key = if (key != null) { _, item -> key(item) } else null
+            ) { index, item ->
+                val shape = when {
+                    items.size == 1 -> singleShape
+                    index == 0 -> topShape
+                    index == items.lastIndex -> bottomShape
+                    else -> middleShape
+                }
+                Column(
+                    modifier = Modifier
+                        .clip(shape)
+                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
+                ) {
                     itemContent(index, item)
                 }
             }
@@ -171,126 +186,67 @@ fun <T> ExpressiveLazyList(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun ExpressiveColumn(
-    modifier: Modifier = Modifier,
-    title: String = "",
-    onClick: (() -> Unit)? = null,
-    onLongClick: (() -> Unit)? = null,
-    enabled: Boolean = true,
-    content: List<@Composable () -> Unit>
-) {
-    if (content.isEmpty()) return
-
-    val containerColor = expressiveSurfaceColor()
-    val contentColor = MaterialTheme.colorScheme.onSurface
-
-    Column(modifier = modifier) {
-        if (title.isNotEmpty()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 4.dp)
-            )
-        }
-
-        Column(
-            modifier = Modifier.clip(
-                if (content.size == 1) singleShape else RoundedCornerShape(largeRadius)
-            ),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            content.forEachIndexed { index, itemContent ->
-                val shape = when {
-                    content.size == 1 -> singleShape
-                    index == 0 -> topShape
-                    index == content.size - 1 -> bottomShape
-                    else -> middleShape
-                }
-                val itemModifier = if (enabled && (onClick != null || onLongClick != null)) {
-                    Modifier.combinedClickable(
-                        onClick = { onClick?.invoke() },
-                        onLongClick = onLongClick
-                    )
-                } else {
-                    Modifier
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(containerColor)
-                        .then(itemModifier)
-                ) {
-                    CompositionLocalProvider(LocalContentColor provides contentColor) {
-                        itemContent()
-                    }
-                }
-            }
-        }
-    }
-}
-
+// Item Composable
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExpressiveListItem(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     headlineContent: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-    supportingContent: (@Composable () -> Unit)? = null,
-    leadingContent: (@Composable () -> Unit)? = null,
-    trailingContent: (@Composable () -> Unit)? = null
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
+    supportingContent: @Composable (() -> Unit)? = null,
+    leadingContent: @Composable (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null,
 ) {
-    val cs = MaterialTheme.colorScheme
-    val clickModifier = if (onClick != null || onLongClick != null) {
-        Modifier.combinedClickable(
-            onClick = { onClick?.invoke() },
-            onLongClick = onLongClick
-        )
-    } else {
-        Modifier
-    }
-    ListItem(
-        modifier = modifier.then(clickModifier),
-        headlineContent = {
-            CompositionLocalProvider(LocalContentColor provides cs.onSurface) {
-                headlineContent()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .let {
+                if (onClick != null || onLongClick != null) {
+                    it.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                } else {
+                    it
+                }
             }
-        },
-        supportingContent = supportingContent?.let {
-            {
-                CompositionLocalProvider(LocalContentColor provides cs.onSurfaceVariant) {
-                    ProvideTextStyle(MaterialTheme.typography.bodySmall) {
-                        it()
+            .then(modifier)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leadingContent != null) {
+            Box(
+                modifier = Modifier.padding(end = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                leadingContent()
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp)
+        ) {
+            headlineContent()
+            if (supportingContent != null) {
+                CompositionLocalProvider(
+                    LocalContentColor provides MaterialTheme.colorScheme.outline
+                ) {
+                    ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                        supportingContent()
                     }
                 }
             }
-        },
-        leadingContent = leadingContent?.let {
-            {
-                CompositionLocalProvider(LocalContentColor provides cs.primary) {
-                    it()
+        }
+        if (trailingContent != null) {
+            Box(
+                modifier = Modifier.padding(start = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                    trailingContent()
                 }
             }
-        },
-        trailingContent = trailingContent?.let {
-            {
-                CompositionLocalProvider(LocalContentColor provides cs.onSurfaceVariant) {
-                    it()
-                }
-            }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            headlineColor = cs.onSurface,
-            supportingColor = cs.onSurfaceVariant,
-            leadingIconColor = cs.primary,
-            trailingIconColor = cs.onSurfaceVariant
-        )
-    )
+        }
+    }
 }
 
 @Composable
@@ -302,10 +258,10 @@ fun ExpressiveSwitchItem(
     enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    val cs = MaterialTheme.colorScheme
     val interactionSource = remember { MutableInteractionSource() }
 
-    ListItem(
+    ExpressiveListItem(
+        onClick = { onCheckedChange(!checked) },
         modifier = Modifier.toggleable(
             value = checked,
             interactionSource = interactionSource,
@@ -314,21 +270,8 @@ fun ExpressiveSwitchItem(
             indication = LocalIndication.current,
             onValueChange = onCheckedChange
         ),
-        headlineContent = {
-            Text(
-                text = title,
-                color = if (enabled) cs.onSurface else cs.onSurface.copy(alpha = 0.45f)
-            )
-        },
-        leadingContent = icon?.let {
-            {
-                Icon(
-                    imageVector = it,
-                    contentDescription = title,
-                    tint = if (enabled) cs.primary else cs.onSurface.copy(alpha = 0.38f)
-                )
-            }
-        },
+        headlineContent = { Text(title) },
+        leadingContent = icon?.let { { Icon(it, title) } },
         trailingContent = {
             Switch(
                 checked = checked,
@@ -337,75 +280,10 @@ fun ExpressiveSwitchItem(
                 interactionSource = interactionSource
             )
         },
-        supportingContent = summary?.let {
-            {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) cs.onSurfaceVariant else cs.onSurfaceVariant.copy(alpha = 0.45f)
-                )
-            }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            headlineColor = cs.onSurface,
-            supportingColor = cs.onSurfaceVariant
-        )
+        supportingContent = summary?.let { { Text(it) } }
     )
 }
 
-@Composable
-fun ExpressiveRadioItem(
-    title: String,
-    summary: String? = null,
-    selected: Boolean,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
-    val cs = MaterialTheme.colorScheme
-    val interactionSource = remember { MutableInteractionSource() }
-
-    ListItem(
-        modifier = Modifier.toggleable(
-            value = selected,
-            interactionSource = interactionSource,
-            role = Role.RadioButton,
-            enabled = enabled,
-            indication = LocalIndication.current,
-            onValueChange = { onClick() }
-        ),
-        headlineContent = {
-            Text(
-                text = title,
-                color = cs.onSurface
-            )
-        },
-        leadingContent = {
-            RadioButton(
-                selected = selected,
-                enabled = enabled,
-                onClick = onClick,
-                interactionSource = interactionSource
-            )
-        },
-        supportingContent = summary?.let {
-            {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant
-                )
-            }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            headlineColor = cs.onSurface,
-            supportingColor = cs.onSurfaceVariant
-        )
-    )
-}
-
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExpressiveDropdownItem(
     icon: ImageVector? = null,
@@ -417,15 +295,18 @@ fun ExpressiveDropdownItem(
     selectedIndex: Int,
     onItemSelected: (Int) -> Unit,
 ) {
-    val cs = MaterialTheme.colorScheme
-    var showDialog by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
 
-    val hasValidSelection = selectedIndex in items.indices
-    val currentSelectionText = if (hasValidSelection) items[selectedIndex] else ""
+    val hasItems = items.isNotEmpty()
+    val safeIndex = if (hasItems) {
+        selectedIndex.coerceIn(0, items.lastIndex)
+    } else {
+        -1
+    }
 
-    ListItem(
+    ExpressiveListItem(
         modifier = if (enabled) {
-            Modifier.combinedClickable(onClick = { showDialog = true })
+            Modifier.clickable { expanded = true }
         } else {
             Modifier
         },
@@ -433,71 +314,77 @@ fun ExpressiveDropdownItem(
             {
                 Icon(
                     imageVector = it,
-                    contentDescription = title,
-                    tint = if (enabled) cs.primary else cs.onSurface.copy(alpha = 0.38f)
+                    contentDescription = null
                 )
             }
         },
-        headlineContent = {
-            Text(
-                text = title,
-                color = if (enabled) cs.onSurface else cs.onSurface.copy(alpha = 0.45f)
-            )
-        },
-        supportingContent = summary?.let {
-            {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) cs.onSurfaceVariant else cs.onSurfaceVariant.copy(alpha = 0.45f)
-                )
-            }
-        },
+        headlineContent = { Text(text = title) },
+        supportingContent = summary?.let { { Text(it) } },
         trailingContent = {
-            Text(
-                text = currentSelectionText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.45f)
-            )
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            headlineColor = cs.onSurface,
-            supportingColor = cs.onSurfaceVariant
-        )
-    )
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            containerColor = cs.surfaceContainerHigh,
-            titleContentColor = cs.onSurface,
-            textContentColor = cs.onSurfaceVariant,
-            title = { Text(text = title, color = cs.onSurface) },
-            text = {
-                ExpressiveList(
-                    content = items.mapIndexed { index, text ->
-                        {
-                            ExpressiveRadioItem(
-                                title = text,
-                                summary = itemDescriptions?.getOrNull(index),
-                                selected = index == selectedIndex,
-                                onClick = {
-                                    onItemSelected(index)
-                                    showDialog = false
-                                }
-                            )
-                        }
-                    }
+            Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
+                Text(
+                    text = if (hasItems && safeIndex >= 0) items[safeIndex] else "",
+                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            },
-            confirmButton = {
-                TextButton(onClick = { showDialog = false }) {
-                    Text(text = "Cancel", color = cs.primary)
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    items.forEachIndexed { index, text ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(text)
+                                    val desc = itemDescriptions?.getOrNull(index)
+                                    if (desc != null) {
+                                        Text(
+                                            text = desc,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                if (index in items.indices) {
+                                    onItemSelected(index)
+                                }
+                                expanded = false
+                            }
+                        )
+                    }
                 }
             }
-        )
-    }
+        }
+    )
+}
+
+@Composable
+fun ExpressiveRadioItem(
+    title: String,
+    summary: String? = null,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    ExpressiveListItem(
+        onClick = onClick,
+        modifier = Modifier.toggleable(
+            value = selected,
+            onValueChange = { onClick() },
+            enabled = enabled,
+            role = Role.RadioButton
+        ),
+        headlineContent = { Text(title) },
+        leadingContent = {
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                enabled = enabled
+            )
+        },
+        supportingContent = summary?.let { { Text(it) } }
+    )
 }
 
 @Composable
@@ -508,44 +395,28 @@ fun ExpressiveCheckboxItem(
     enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    val cs = MaterialTheme.colorScheme
     val interactionSource = remember { MutableInteractionSource() }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                interactionSource = interactionSource,
-                role = Role.Checkbox,
-                enabled = enabled,
-                indication = LocalIndication.current,
-                onValueChange = onCheckedChange
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Checkbox(
-            checked = checked,
-            enabled = enabled,
-            onCheckedChange = null,
+    ExpressiveListItem(
+        onClick = { onCheckedChange(!checked) },
+        modifier = Modifier.toggleable(
+            value = checked,
             interactionSource = interactionSource,
-            modifier = Modifier.size(24.dp)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) cs.onSurface else cs.onSurface.copy(alpha = 0.45f)
+            role = Role.Checkbox,
+            enabled = enabled,
+            indication = LocalIndication.current,
+            onValueChange = onCheckedChange
+        ),
+        headlineContent = { Text(title) },
+        leadingContent = {
+            Checkbox(
+                checked = checked,
+                enabled = enabled,
+                onCheckedChange = onCheckedChange,
+                interactionSource = interactionSource,
+                modifier = Modifier.size(24.dp)
             )
-            if (summary != null) {
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (enabled) cs.onSurfaceVariant else cs.onSurfaceVariant.copy(alpha = 0.45f)
-                )
-            }
-        }
-    }
+        },
+        supportingContent = summary?.let { { Text(it) } }
+    )
 }

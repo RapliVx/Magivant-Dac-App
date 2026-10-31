@@ -20,6 +20,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -71,6 +72,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -84,6 +86,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.Role
@@ -103,7 +106,6 @@ import com.rapli.magivant.ui.components.ExpressiveDropdownItem
 import com.rapli.magivant.ui.components.ExpressiveList
 import com.rapli.magivant.ui.components.ExpressiveListItem
 import com.rapli.magivant.ui.components.ExpressiveSwitchItem
-import com.rapli.magivant.ui.components.expressiveSurfaceColor
 import com.rapli.magivant.ui.theme.AppSettings
 import com.rapli.magivant.ui.theme.ColorMode
 import com.rapli.magivant.ui.theme.keyColorOptions
@@ -213,8 +215,12 @@ fun MagivantSettingsScreen(
             )
     ) {
         ThemePreviewCard(
-            appSettings = appSettings,
-            uiState = uiState
+            keyColor = appSettings.keyColor,
+            isDark = isDark,
+            isAmoled = isAmoled,
+            enableFloatingNav = appSettings.isFloatingNavbar,
+            useClassicLayout = appSettings.isClassicBanner,
+            dpiScale = appSettings.dpiScale
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -573,26 +579,28 @@ private fun ColorButton(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ThemePreviewCard(
-    appSettings: AppSettings,
-    uiState: DacUiState
+    keyColor: Int,
+    isDark: Boolean,
+    isAmoled: Boolean,
+    enableFloatingNav: Boolean,
+    useClassicLayout: Boolean,
+    dpiScale: Float
 ) {
-    val context = LocalContext.current
-    val systemDarkTheme = isSystemInDarkTheme()
-    val isDark = appSettings.colorMode.getDarkThemeValue(systemDarkTheme)
-    val isAmoled = appSettings.colorMode == ColorMode.DARKAMOLED
-    val dynamicColor = appSettings.keyColor == 0
-
-    val previewScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.toFloat()
+    val screenHeight = configuration.screenHeightDp.toFloat()
+    val screenRatio = screenWidth / screenHeight
+    val colorScheme = when {
+        keyColor == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             rememberDynamicColorScheme(
                 seedColor = colorResource(id = android.R.color.system_accent1_500),
                 isDark = isDark,
                 isAmoled = isAmoled
             )
         }
-        !dynamicColor -> {
+        keyColor != 0 -> {
             rememberDynamicColorScheme(
-                seedColor = Color(appSettings.keyColor),
+                seedColor = Color(keyColor),
                 isDark = isDark,
                 isAmoled = isAmoled
             )
@@ -602,217 +610,119 @@ private fun ThemePreviewCard(
         }
     }
 
-    val previewBg = previewScheme.background
-    val previewCardSurface = previewScheme.surfaceContainerHigh
-    val previewText = previewScheme.onSurface
-    val previewSubText = previewScheme.onSurfaceVariant
-
-    val imageLoader = remember {
-        ImageLoader.Builder(context)
-            .components {
-                if (Build.VERSION.SDK_INT >= 28) {
-                    add(ImageDecoderDecoder.Factory())
-                } else {
-                    add(GifDecoder.Factory())
-                }
-            }
-            .build()
+    val systemDensity = androidx.compose.ui.platform.LocalDensity.current
+    val customDensity = remember(systemDensity, dpiScale) {
+        androidx.compose.ui.unit.Density(
+            density = systemDensity.density * dpiScale,
+            fontScale = systemDensity.fontScale * dpiScale
+        )
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = expressiveSurfaceColor()
-        )
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Preview",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-            )
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = previewBg,
-                border = BorderStroke(1.dp, previewScheme.outlineVariant.copy(alpha = 0.5f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                ) {
-                    Column(
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.48f)
+                .aspectRatio(screenRatio),
+            color = colorScheme.surface,
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(2.dp, color = MaterialTheme.colorScheme.outlineVariant),
+            shadowElevation = 8.dp
+        ) {
+            CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides customDensity) {
+                Column {
+                    Box(
                         modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .height(56.dp)
+                            .fillMaxWidth()
+                            .background(colorScheme.surfaceContainer),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        if (appSettings.isClassicBanner) {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(74.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(appSettings.customHeaderUri ?: R.drawable.magivant_banner)
-                                        .crossfade(true)
-                                        .build(),
-                                    imageLoader = imageLoader,
-                                    contentDescription = "Banner Preview",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
+                        Text(
+                            text = "Magivant DAC",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .background(colorScheme.surface),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (useClassicLayout) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Surface(
+                                        color = colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth().height(72.dp)
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
+                                            Surface(color = colorScheme.primary, shape = RoundedCornerShape(4.dp), modifier = Modifier.width(36.dp).height(8.dp)) {}
+                                        }
+                                    }
+                                    Surface(
+                                        color = colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Box(modifier = Modifier.size(24.dp).background(colorScheme.primaryContainer, CircleShape))
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(48.dp).height(6.dp)) {}
+                                                Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.4f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(32.dp).height(4.dp)) {}
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().height(72.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Surface(
+                                        color = colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.weight(0.6f).fillMaxHeight()
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
+                                            Surface(color = colorScheme.primary, shape = RoundedCornerShape(4.dp), modifier = Modifier.width(36.dp).height(8.dp)) {}
+                                        }
+                                    }
+                                    Column(
+                                        modifier = Modifier.weight(0.4f).fillMaxHeight(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(color = colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {}
+                                        Surface(color = colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {}
+                                    }
+                                }
+
                                 Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = previewScheme.secondaryContainer
+                                    color = colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.fillMaxWidth().height(56.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp),
+                                        modifier = Modifier.fillMaxSize().padding(12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.GraphicEq,
-                                            contentDescription = null,
-                                            tint = previewScheme.onSecondaryContainer,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = if (uiState.isConnected) "Connected" else "Magivant DAC",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = previewScheme.onSecondaryContainer
-                                            )
-                                            Text(
-                                                text = uiState.sampleRateText,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = previewScheme.onSecondaryContainer.copy(alpha = 0.85f)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = previewCardSurface
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(horizontal = 10.dp),
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(
-                                            text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = previewText
-                                        )
-                                        Text(
-                                            text = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = previewSubText
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Card(
-                                    modifier = Modifier
-                                        .weight(0.58f)
-                                        .height(94.dp),
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(appSettings.customHeaderUri ?: R.drawable.magivant_banner)
-                                            .crossfade(true)
-                                            .build(),
-                                        imageLoader = imageLoader,
-                                        contentDescription = "Banner Preview",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-
-                                Column(
-                                    modifier = Modifier
-                                        .weight(0.42f)
-                                        .fillMaxHeight(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = previewScheme.secondaryContainer
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(horizontal = 10.dp),
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Text(
-                                                text = if (uiState.isConnected) "Connected" else "Standby",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = previewScheme.onSecondaryContainer
-                                            )
-                                            Text(
-                                                text = uiState.sampleRateText,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = previewScheme.onSecondaryContainer.copy(alpha = 0.85f)
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = previewCardSurface
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(horizontal = 10.dp),
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Text(
-                                                text = Cs43198Spec.formatDbFs(uiState.rawVolumeReg),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = previewText
-                                            )
-                                            Text(
-                                                text = Cs43198Spec.formatVrms(uiState.rawVolumeReg, uiState.isHighGain),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = previewSubText
-                                            )
+                                        Box(modifier = Modifier.size(24.dp).background(colorScheme.primaryContainer, CircleShape))
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(48.dp).height(6.dp)) {}
+                                            Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.4f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(32.dp).height(4.dp)) {}
                                         }
                                     }
                                 }
@@ -820,104 +730,47 @@ private fun ThemePreviewCard(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (appSettings.isFloatingNavbar) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+                        if (enableFloatingNav) {
                             Surface(
+                                modifier = Modifier.padding(bottom = 12.dp).height(40.dp).padding(horizontal = 24.dp),
                                 shape = RoundedCornerShape(50),
-                                color = previewCardSurface
+                                color = colorScheme.surfaceContainerHigh
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(50))
-                                            .background(previewScheme.secondaryContainer)
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Filled.GraphicEq,
-                                                contentDescription = null,
-                                                tint = previewScheme.onSecondaryContainer,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "DAC",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = previewScheme.onSecondaryContainer
-                                            )
+                                    Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(24.dp).width(40.dp)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                                         }
                                     }
-
-                                    Icon(
-                                        imageVector = Icons.Outlined.Tune,
-                                        contentDescription = null,
-                                        tint = previewSubText,
-                                        modifier = Modifier
-                                            .padding(horizontal = 8.dp)
-                                            .size(16.dp)
-                                    )
-
-                                    Icon(
-                                        imageVector = Icons.Outlined.Palette,
-                                        contentDescription = null,
-                                        tint = previewSubText,
-                                        modifier = Modifier
-                                            .padding(horizontal = 8.dp)
-                                            .size(16.dp)
-                                    )
+                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
+                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
+                                    Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
                                 }
                             }
-                        }
-                    } else {
-                        Surface(
-                            color = previewCardSurface,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
+                        } else {
+                            Surface(
+                                color = colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .background(previewScheme.secondaryContainer)
-                                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.GraphicEq,
-                                        contentDescription = null,
-                                        tint = previewScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(28.dp).width(48.dp)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
+                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
+                                    Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
                                 }
-                                Icon(
-                                    imageVector = Icons.Outlined.Tune,
-                                    contentDescription = null,
-                                    tint = previewSubText,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Icon(
-                                    imageVector = Icons.Outlined.Palette,
-                                    contentDescription = null,
-                                    tint = previewSubText,
-                                    modifier = Modifier.size(16.dp)
-                                )
                             }
                         }
                     }

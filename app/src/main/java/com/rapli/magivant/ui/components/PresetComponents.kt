@@ -246,13 +246,9 @@ private fun PresetActionHeader(
     onExportCurrentClicked: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
-    Card(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = expressiveSurfaceColor(),
-            contentColor = cs.onSurface
-        )
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
             modifier = Modifier
@@ -365,13 +361,9 @@ private fun EmptyPresetStateCard(
     onImportClicked: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
-    Card(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = expressiveSurfaceColor(),
-            contentColor = cs.onSurface
-        )
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
             modifier = Modifier
@@ -395,7 +387,7 @@ private fun EmptyPresetStateCard(
             Text(
                 text = "Save your current volume, balance, gain, and filter settings, or import a JSON file.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = cs.onSurfaceVariant
+                color = cs.outline
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
