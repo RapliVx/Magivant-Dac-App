@@ -13,13 +13,13 @@ apksign {
 
 android {
     namespace = "com.rapli.magivant"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.rapli.magivant"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 6
         versionName = "3.3-Expressive"
 
