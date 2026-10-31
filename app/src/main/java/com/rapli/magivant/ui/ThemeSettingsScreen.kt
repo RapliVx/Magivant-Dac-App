@@ -180,7 +180,6 @@ fun MagivantSettingsScreen(
                 )
                 val options = UCrop.Options().apply {
                     setToolbarColor(cs.surface.toArgb())
-                    setStatusBarColor(cs.surface.toArgb())
                     setToolbarWidgetColor(cs.onSurface.toArgb())
                     setActiveControlsWidgetColor(cs.primary.toArgb())
                     setRootViewBackgroundColor(cs.surface.toArgb())
