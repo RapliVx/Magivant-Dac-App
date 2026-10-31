@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Brightness1
+import androidx.compose.material.icons.filled.Brightness3
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.BrightnessAuto
@@ -65,6 +66,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -92,7 +97,6 @@ import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
-import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import com.rapli.magivant.R
 import com.rapli.magivant.ui.components.ExpressiveDropdownItem
@@ -191,10 +195,10 @@ fun MagivantSettingsScreen(
     }
 
     val themeOptions = listOf(
-        Triple("System", ColorMode.SYSTEM, Icons.Filled.BrightnessAuto),
-        Triple("Light", ColorMode.LIGHT, Icons.Filled.Brightness7),
-        Triple("Dark", ColorMode.DARK, Icons.Filled.Brightness4),
-        Triple("AMOLED", ColorMode.DARKAMOLED, Icons.Filled.Brightness1)
+        ColorMode.SYSTEM to "System",
+        ColorMode.LIGHT to "Light",
+        ColorMode.DARK to "Dark",
+        ColorMode.DARKAMOLED to "AMOLED"
     )
 
     Column(
@@ -261,20 +265,12 @@ fun MagivantSettingsScreen(
                         .padding(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
                 ) {
-                    themeOptions.forEachIndexed { index, (label, mode, icon) ->
-                        val isChecked = appSettings.colorMode == mode
+                    themeOptions.forEachIndexed { index, (mode, label) ->
                         ToggleButton(
-                            checked = isChecked,
+                            checked = appSettings.colorMode == mode,
                             onCheckedChange = {
                                 if (it) onUpdateThemeMode(mode)
                             },
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
-                            colors = ToggleButtonDefaults.toggleButtonColors(
-                                containerColor = cs.surfaceContainerHighest,
-                                contentColor = cs.onSurface,
-                                checkedContainerColor = cs.primary,
-                                checkedContentColor = cs.onPrimary
-                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .semantics { role = Role.RadioButton },
@@ -284,25 +280,15 @@ fun MagivantSettingsScreen(
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             }
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = label,
-                                    tint = if (isChecked) cs.onPrimary else cs.onSurface,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isChecked) cs.onPrimary else cs.onSurface,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
+                            Icon(
+                                imageVector = when (mode) {
+                                    ColorMode.SYSTEM -> Icons.Filled.Brightness4
+                                    ColorMode.LIGHT -> Icons.Filled.Brightness7
+                                    ColorMode.DARK -> Icons.Filled.Brightness3
+                                    ColorMode.DARKAMOLED -> Icons.Filled.Brightness1
+                                },
+                                contentDescription = label
+                            )
                         }
                     }
                 }
@@ -485,14 +471,11 @@ private fun ColorButton(
     isAmoled: Boolean,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val colorScheme = if (color == Color.Unspecified) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            rememberDynamicColorScheme(
-                seedColor = colorResource(id = android.R.color.system_accent1_500),
-                isDark = isDark,
-                isAmoled = isAmoled,
-                style = PaletteStyle.TonalSpot
-            )
+            if (isDark) dynamicDarkColorScheme(context)
+            else dynamicLightColorScheme(context)
         } else {
             MaterialTheme.colorScheme
         }
@@ -500,8 +483,7 @@ private fun ColorButton(
         rememberDynamicColorScheme(
             seedColor = color,
             isDark = isDark,
-            isAmoled = isAmoled,
-            style = PaletteStyle.TonalSpot
+            isAmoled = isAmoled
         )
     }
 
@@ -514,10 +496,6 @@ private fun ColorButton(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
         color = colorScheme.surfaceContainer,
-        border = BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
-            color = if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)
-        ),
         modifier = Modifier.size(72.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -599,7 +577,30 @@ private fun ThemePreviewCard(
     uiState: DacUiState
 ) {
     val context = LocalContext.current
-    val previewScheme = MaterialTheme.colorScheme
+    val systemDarkTheme = isSystemInDarkTheme()
+    val isDark = appSettings.colorMode.getDarkThemeValue(systemDarkTheme)
+    val isAmoled = appSettings.colorMode == ColorMode.DARKAMOLED
+    val dynamicColor = appSettings.keyColor == 0
+
+    val previewScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            rememberDynamicColorScheme(
+                seedColor = colorResource(id = android.R.color.system_accent1_500),
+                isDark = isDark,
+                isAmoled = isAmoled
+            )
+        }
+        !dynamicColor -> {
+            rememberDynamicColorScheme(
+                seedColor = Color(appSettings.keyColor),
+                isDark = isDark,
+                isAmoled = isAmoled
+            )
+        }
+        else -> {
+            if (isDark) darkColorScheme() else expressiveLightColorScheme()
+        }
+    }
 
     val previewBg = previewScheme.background
     val previewCardSurface = previewScheme.surfaceContainerHigh

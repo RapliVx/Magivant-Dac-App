@@ -221,8 +221,7 @@ fun MagivantPresetScreen(
                                 ) {
                                     Text(
                                         text = if (isActive) "Active" else "Apply",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = cs.onSecondaryContainer
+                                        style = MaterialTheme.typography.labelMedium
                                     )
                                 }
                             }
@@ -274,7 +273,7 @@ private fun PresetActionHeader(
                         color = cs.onSurface
                     )
                     TextButton(onClick = onClearSelection) {
-                        Text("Cancel", color = cs.primary)
+                        Text("Cancel")
                     }
                 }
                 Row(
@@ -288,11 +287,10 @@ private fun PresetActionHeader(
                         Icon(
                             imageVector = Icons.Filled.Delete,
                             contentDescription = null,
-                            tint = cs.onPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Delete", color = cs.onPrimary)
+                        Text("Delete")
                     }
                     if (selectedCount == 1) {
                         OutlinedButton(
@@ -302,11 +300,10 @@ private fun PresetActionHeader(
                             Icon(
                                 imageVector = Icons.Filled.FileUpload,
                                 contentDescription = null,
-                                tint = cs.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Export JSON", color = cs.primary)
+                            Text("Export JSON")
                         }
                     }
                 }
@@ -335,11 +332,10 @@ private fun PresetActionHeader(
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = null,
-                            tint = cs.onPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Preset", color = cs.onPrimary)
+                        Text("Save Preset")
                     }
                     FilledTonalButton(
                         onClick = onImportClicked
@@ -347,16 +343,15 @@ private fun PresetActionHeader(
                         Icon(
                             imageVector = Icons.Filled.FileDownload,
                             contentDescription = null,
-                            tint = cs.onSecondaryContainer,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Import", color = cs.onSecondaryContainer)
+                        Text("Import")
                     }
                     OutlinedButton(
                         onClick = onExportCurrentClicked
                     ) {
-                        Text("Export", color = cs.primary)
+                        Text("Export")
                     }
                 }
             }
@@ -406,10 +401,10 @@ private fun EmptyPresetStateCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(onClick = onNewClicked) {
-                    Text("Save Current State", color = cs.onPrimary)
+                    Text("Save Current State")
                 }
                 OutlinedButton(onClick = onImportClicked) {
-                    Text("Import JSON", color = cs.primary)
+                    Text("Import JSON")
                 }
             }
         }
@@ -429,7 +424,7 @@ fun NewPresetInputDialog(
         containerColor = cs.surfaceContainerHigh,
         titleContentColor = cs.onSurface,
         textContentColor = cs.onSurfaceVariant,
-        title = { Text("Save Preset", color = cs.onSurface) },
+        title = { Text("Save Preset") },
         text = {
             OutlinedTextField(
                 value = presetName,
@@ -447,12 +442,12 @@ fun NewPresetInputDialog(
                 },
                 enabled = presetName.isNotBlank()
             ) {
-                Text("Save", color = cs.onPrimary)
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = cs.primary)
+                Text("Cancel")
             }
         }
     )

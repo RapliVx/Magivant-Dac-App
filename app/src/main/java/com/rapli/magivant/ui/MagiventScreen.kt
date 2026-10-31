@@ -1035,7 +1035,7 @@ private fun DisconnectedQuickCard(
                 )
             }
             Button(onClick = onScanUsb) {
-                Text("Scan USB", color = cs.onPrimary)
+                Text("Scan USB")
             }
         }
     }
@@ -1094,7 +1094,7 @@ private fun VolumeAndBalanceCard(
                         }
 
                         TextButton(onClick = onQuickSavePreset) {
-                            Text("Save Preset", color = cs.primary)
+                            Text("Save Preset")
                         }
                     }
 
@@ -1121,14 +1121,10 @@ private fun VolumeAndBalanceCard(
                             Icon(
                                 imageVector = Icons.Filled.Remove,
                                 contentDescription = "Attenuate 0.5 dB",
-                                tint = if (stepButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "-0.5 dB",
-                                color = if (stepButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
-                            )
+                            Text("-0.5 dB")
                         }
 
                         FilledTonalButton(
@@ -1136,10 +1132,7 @@ private fun VolumeAndBalanceCard(
                             enabled = muteButtonEnabled,
                             modifier = Modifier.weight(0.9f)
                         ) {
-                            Text(
-                                text = "Mute",
-                                color = if (muteButtonEnabled) cs.onSecondaryContainer else cs.onSurfaceVariant.copy(alpha = 0.38f)
-                            )
+                            Text("Mute")
                         }
 
                         OutlinedButton(
@@ -1150,14 +1143,10 @@ private fun VolumeAndBalanceCard(
                             Icon(
                                 imageVector = Icons.Filled.Add,
                                 contentDescription = "Boost 0.5 dB",
-                                tint = if (boostButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "+0.5 dB",
-                                color = if (boostButtonEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
-                            )
+                            Text("+0.5 dB")
                         }
                     }
                 }
@@ -1193,7 +1182,7 @@ private fun VolumeAndBalanceCard(
                                 onClick = { onBalanceChanged(0) },
                                 enabled = uiState.isConnected
                             ) {
-                                Text("Center (0 dB)", color = cs.primary)
+                                Text("Center (0 dB)")
                             }
                         }
                     }
@@ -1218,30 +1207,21 @@ private fun VolumeAndBalanceCard(
                             enabled = leftEnabled,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(
-                                text = "Left Bias",
-                                color = if (leftEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
-                            )
+                            Text("Left Bias")
                         }
                         FilledTonalButton(
                             onClick = { onBalanceChanged(0) },
                             enabled = centerEnabled,
                             modifier = Modifier.weight(0.9f)
                         ) {
-                            Text(
-                                text = "0.0 dB",
-                                color = if (centerEnabled) cs.onSecondaryContainer else cs.onSurfaceVariant.copy(alpha = 0.38f)
-                            )
+                            Text("0.0 dB")
                         }
                         OutlinedButton(
                             onClick = { onBalanceChanged((uiState.balanceBaseValue + 1).coerceAtMost(10)) },
                             enabled = rightEnabled,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(
-                                text = "Right Bias",
-                                color = if (rightEnabled) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.38f)
-                            )
+                            Text("Right Bias")
                         }
                     }
                 }

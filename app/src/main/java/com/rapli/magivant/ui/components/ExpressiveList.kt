@@ -65,15 +65,9 @@ private val bottomShape = RoundedCornerShape(
 )
 private val singleShape = RoundedCornerShape(largeRadius)
 
-// Uses tinted surfaceContainer in Light Mode so segmented cards have clear pastel color separation against the light background.
 @Composable
 fun expressiveSurfaceColor(): Color {
-    val cs = MaterialTheme.colorScheme
-    return if (cs.background.luminance() > 0.5f) {
-        cs.surfaceContainer
-    } else {
-        cs.surfaceColorAtElevation(1.dp)
-    }
+    return MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
 }
 
 @Composable
