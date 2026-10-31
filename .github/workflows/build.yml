@@ -15,10 +15,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -26,10 +26,28 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
+      - name: Setup Android SDK Platform 37
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            if [ -d "$ANDROID_HOME/platforms/android-37.0" ]; then
+              ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+            else
+              echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37.0" || true
+              if [ -d "$ANDROID_HOME/platforms/android-37.0" ]; then
+                ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+              fi
+            fi
+          fi
+
       - name: Write key
         run: |
           KEYSTORE_CONTENT="${{ secrets.KEYSTORE || secrets.KEYSTORE_BASE64 }}"
-          if [ ! -z "$KEYSTORE_CONTENT" ]; then
+          if [ -n "$KEYSTORE_CONTENT" ]; then
+            echo "" >> gradle.properties
+            sed -i '/KEYSTORE_FILE/d' gradle.properties
+            sed -i '/KEYSTORE_PASSWORD/d' gradle.properties
+            sed -i '/KEY_ALIAS/d' gradle.properties
+            sed -i '/KEY_PASSWORD/d' gradle.properties
             {
               echo KEYSTORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}'
               echo KEY_ALIAS='${{ secrets.KEY_ALIAS }}'
