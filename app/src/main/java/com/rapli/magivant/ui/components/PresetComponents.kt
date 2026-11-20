@@ -3,6 +3,7 @@ package com.rapli.magivant.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -315,14 +316,14 @@ private fun PresetActionHeader(
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant
                 )
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = onNewClicked,
-                        enabled = uiState.hasDeviceState,
-                        modifier = Modifier.weight(1f)
+                        enabled = uiState.hasDeviceState
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Add,
@@ -330,7 +331,7 @@ private fun PresetActionHeader(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Preset")
+                        Text("Save Preset", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = onImportClicked

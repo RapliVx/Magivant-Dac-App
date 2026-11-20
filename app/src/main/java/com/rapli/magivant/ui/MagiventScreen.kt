@@ -23,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -39,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -1022,7 +1024,7 @@ private fun DisconnectedQuickCard(
 }
 
 @Composable
-private fun VolumeAndBalanceCard(
+internal fun VolumeAndBalanceCard(
     uiState: DacUiState,
     onVolumeChanged: (Int) -> Unit,
     onAdjustHalfDb: (Int) -> Unit,
@@ -1044,12 +1046,14 @@ private fun VolumeAndBalanceCard(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f).widthIn(min = 160.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -1058,7 +1062,7 @@ private fun VolumeAndBalanceCard(
                                 contentDescription = "Volume",
                                 tint = cs.primary
                             )
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Volume (${uiState.volumeIndex} / ${uiState.maxVolumeIndex})",
                                     style = MaterialTheme.typography.titleMedium,
@@ -1074,7 +1078,7 @@ private fun VolumeAndBalanceCard(
                         }
 
                         TextButton(onClick = onQuickSavePreset, enabled = uiState.hasDeviceState) {
-                            Text("Save Preset")
+                            Text("Save Preset", maxLines = 1, softWrap = false)
                         }
                     }
 

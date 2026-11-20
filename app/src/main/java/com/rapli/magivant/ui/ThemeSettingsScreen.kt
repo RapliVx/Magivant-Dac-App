@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.Brightness3
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayCircleOutline
@@ -49,8 +48,8 @@ import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -93,6 +92,7 @@ import com.rapli.magivant.R
 import com.rapli.magivant.ui.components.ExpressiveDropdownItem
 import com.rapli.magivant.ui.components.ExpressiveList
 import com.rapli.magivant.ui.components.MagivantSlider
+import com.rapli.magivant.ui.components.MagivantTab
 import com.rapli.magivant.ui.components.ExpressiveListItem
 import com.rapli.magivant.ui.components.ExpressiveSwitchItem
 import com.rapli.magivant.ui.theme.AppSettings
@@ -737,48 +737,66 @@ private fun ThemePreviewCard(
                     }
                 }
 
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                    if (enableFloatingNav) {
+                ThemePreviewNavigation(
+                    colorScheme = colorScheme,
+                    isFloating = enableFloatingNav
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ThemePreviewNavigation(
+    colorScheme: ColorScheme,
+    isFloating: Boolean
+) {
+    Surface(
+        modifier = Modifier
+            .padding(horizontal = if (isFloating) 12.dp else 0.dp)
+            .padding(bottom = if (isFloating) 12.dp else 0.dp)
+            .fillMaxWidth()
+            .height(if (isFloating) 40.dp else 48.dp),
+        shape = if (isFloating) RoundedCornerShape(50) else RoundedCornerShape(0.dp),
+        color = colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = if (isFloating) 8.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MagivantTab.entries.forEach { destination ->
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val isSelected = destination == MagivantTab.HOME
+                    val iconSize = if (isFloating) 14.dp else 16.dp
+                    if (isSelected) {
                         Surface(
-                            modifier = Modifier.padding(bottom = 12.dp).height(40.dp).padding(horizontal = 24.dp),
+                            modifier = Modifier
+                                .width(if (isFloating) 40.dp else 48.dp)
+                                .height(if (isFloating) 24.dp else 28.dp),
                             shape = RoundedCornerShape(50),
-                            color = colorScheme.surfaceContainerHigh
+                            color = colorScheme.primaryContainer
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(24.dp).width(40.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
-                                    }
-                                }
-                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
-                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
-                                Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = destination.iconSelected,
+                                    contentDescription = destination.label,
+                                    tint = colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(iconSize)
+                                )
                             }
                         }
                     } else {
-                        Surface(
-                            color = colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(28.dp).width(48.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
-                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
-                                Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
-                            }
-                        }
+                        Icon(
+                            imageVector = destination.iconNotSelected,
+                            contentDescription = destination.label,
+                            tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(iconSize)
+                        )
                     }
                 }
             }
