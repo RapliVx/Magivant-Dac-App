@@ -16,9 +16,9 @@ Unlike standard audio players that simply send PCM audio data to the Android OS,
 Here is the breakdown of the application flow:
 
 1. **Device Detection & Permission:** The app uses Android's `UsbManager` to listen for specific **Vendor IDs (VID)** and **Product IDs (PID)** associated with Leteciel Magivant devices (e.g., `VID 0x2FC6`). Once attached, it requests explicit USB Host permission from the user.
-2. **USB HID Communication:** Once permission is granted, the app establishes a `UsbDeviceConnection` and claims the appropriate USB Interface. It does not use standard audio APIs (like AudioTrack) for control; instead, it uses the **USB Human Interface Device (HID)** protocol.
+2. **USB Vendor Communication:** Once permission is granted, the app opens a `UsbDeviceConnection`. Hardware settings use vendor-specific control transfers on endpoint zero; the app does not claim the audio interface or send audio through AudioTrack.
 3. **Control Transfers:** When you change a setting in the UI (e.g., switching to High Gain), the `ViewModel` translates this action into a specific array of Hexadecimal bytes. The `UsbDacManager` then sends this payload directly to the DAC using `connection.controlTransfer()`. These specific byte payloads were discovered through protocol analysis (reverse-engineering the stock application).
-4. **Reactive UI State:** The hardware state is wrapped in Kotlin `StateFlow`. Whenever a successful USB command is dispatched, the UI (built with Jetpack Compose) instantly and reactively updates to reflect the new hardware state.
+4. **Reactive UI State:** Hardware settings are read back over USB before updating Kotlin `StateFlow`. A preset is confirmed only after its settings have been read back successfully. Disconnect cancels the current USB session.
 
 ---
 
@@ -47,9 +47,11 @@ The Magivant preset system utilizes a structured JSON schema to synchronize soft
 
 | Field Name | Data Type | Range / Constraints | Functional Description |
 | :--- | :--- | :--- | :--- |
-| `name` | `String` | Alphanumeric | **Preset Identifier**: A descriptive label used to identify the configuration profile within the application environment. |
+| `name` | `String` | 1–80 characters; no path separators or control characters | **Preset Identifier**: A descriptive label used to identify the configuration profile within the application environment. |
+| `schemaVersion` | `Integer` | `1` or `2` | Legacy files without this field use version 1. New files use version 2. |
+| `rawVolumeReg` | `Integer` | `0` to `255`; required in version 2 | Exact attenuation register, retaining 0.5 dB adjustments. Must correspond to `volumeIndex`. |
 | `volumeIndex` | `Integer` | `0` to `60` | **Gain Magnitude**: Represents the discrete step of the hardware volume attenuator. `0` denotes full attenuation (Mute), while `60` represents 0dBFS (Maximum). |
-| `balanceBaseValue` | `Integer` | `-50` to `50` | **Channel Offset**: Adjusts the relative amplitude between the Left and Right channels. Negative values shift the stereo image to the Left; positive values shift to the Right. |
+| `balanceBaseValue` | `Integer` | `-10` to `10` | **Channel Offset**: Adjusts the relative amplitude between the Left and Right channels. Negative values shift the stereo image to the Left; positive values shift to the Right. |
 | `isHighGain` | `Boolean` | `true`, `false` | **Amplification Topology**: Toggles the hardware voltage swing. When `true`, the DAC engages a high-voltage rail to drive high-impedance loads. |
 | `digitalFilterPos` | `Integer` | `0` to `4` | **Interpolation Filter**: Selects the digital reconstruction filter algorithm used during the Digital-to-Analog conversion process. |
 | `ledPos` | `Integer` | `0` to `2` | **Visual Indicator Logic**: Manages the operational state and persistence of the physical LED status indicator on the hardware. |
@@ -78,6 +80,8 @@ Defines the behavior of the device's status light:
 
 ```json
 {
+  "schemaVersion": 2,
+  "rawVolumeReg": 0,
   "balanceBaseValue": 0,
   "digitalFilterPos": 4,
   "isHighGain": false,
@@ -113,9 +117,9 @@ Follow these steps to set up the development environment and build **Magivant-DA
 
 #### **1. Prerequisites**
 Before you begin, ensure you have the following installed:
-* **Android Studio Ladybug (2024.2.1)** or newer.
-* **Android SDK Platform 36**.
-* **JDK 17** (comes bundled with modern Android Studio).
+* **Android Studio with support for the project’s Android Gradle Plugin version**.
+* **Android SDK Platform 37**.
+* **JDK 21** (comes bundled with modern Android Studio).
 * A physical **Leteciel Magivant USB DAC** device (Emulators do not support USB Host hardware communication effectively).
 
 #### **2. Clone the Repository**
@@ -124,3 +128,20 @@ Open your terminal and run:
 git clone https://github.com/RapliVx/Magivant-Dac-App.git Magivant
 cd Magivant
 ```
+
+
+## Preset and device safeguards
+
+- Existing version 1 presets remain readable. New presets store the exact volume register.
+- JSON imports are limited to 64 KiB and validated before saving. Names inside JSON are preserved.
+- Presets are stored using generated file names and atomic writes. Saving the same display name replaces that preset.
+- Preset changes mute the DAC first, apply settings sequentially, then restore the limited volume and read back the result.
+- The app enforces the configured register limit on connection and each volume refresh. This is a software safeguard, not a limiter inside the DAC; external changes can precede the next refresh.
+- Auto DND uses a dedicated Magivant DAC rule. Grant notification policy access and leave that rule enabled. Other system DND rules are preserved.
+- Header images are copied into app storage; GIFs are preserved. The maximum copied image size is 20 MiB.
+- Vrms values are estimates based on the configured register and assumed gain rail, not live electrical measurements. Device protocol mappings require validation on physical hardware.
+
+## Verification and release signing
+
+Run `./gradlew testDebugUnitTest lintDebug assembleDebug --max-workers=1` with `ANDROID_HOME` pointing to the installed Android SDK.
+For release builds, provide `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` as Gradle properties (or `ORG_GRADLE_PROJECT_…` environment variables). Release builds fail if signing credentials are missing; they do not intentionally fall back to the debug certificate.
