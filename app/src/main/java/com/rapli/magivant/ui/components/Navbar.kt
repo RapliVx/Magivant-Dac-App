@@ -2,13 +2,16 @@ package com.rapli.magivant.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +38,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -44,7 +46,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -58,23 +59,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 enum class MagivantTab(
     val label: String,
@@ -86,7 +83,6 @@ enum class MagivantTab(
     SETTINGS("Settings", Icons.Filled.Palette, Icons.Outlined.Palette)
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MagivantBottomBar(
     currentTab: MagivantTab,
@@ -97,12 +93,7 @@ fun MagivantBottomBar(
 ) {
     val visibleTabs = MagivantTab.entries
     val latestOnTabSelected by rememberUpdatedState(onTabSelected)
-    val motion = MaterialTheme.motionScheme
-    val effectsSpec = motion.fastEffectsSpec<Float>()
-    val colorSpec = motion.fastEffectsSpec<Color>()
-    val sizeSpec = motion.fastSpatialSpec<IntSize>()
-    val boundsSpec = motion.fastSpatialSpec<Rect>()
-    val offsetSpec = motion.fastSpatialSpec<Float>()
+
     val insets = if (isFloating) {
         WindowInsets(0, 0, 0, 0)
     } else {
@@ -118,124 +109,117 @@ fun MagivantBottomBar(
         contentAlignment = Alignment.BottomCenter
     ) {
         if (isFloating) {
+            val enableGesture = isFloatingGestureEnabled
             val indicatorBounds = remember { mutableStateMapOf<Int, Rect>() }
             val selectedIndex = visibleTabs.indexOf(currentTab)
-            val activeRect = indicatorBounds[selectedIndex] ?: Rect.Zero
-            val latestActiveRect by rememberUpdatedState(activeRect)
-            val indicator = remember { Animatable(Rect.Zero, Rect.VectorConverter) }
-            val navbarOffset = remember { Animatable(0f) }
-            val velocityTracker = remember { VelocityTracker() }
+            val latestSelectedIndex by rememberUpdatedState(selectedIndex)
+
             var isGestureActive by remember { mutableStateOf(false) }
             var dragPositionX by remember { mutableFloatStateOf(0f) }
+            var rawDragX by remember { mutableFloatStateOf(0f) }
             var hoveredIndex by remember { mutableIntStateOf(-1) }
-            var releasedRect by remember { mutableStateOf<Rect?>(null) }
-            var releasedOffset by remember { mutableFloatStateOf(0f) }
-            var releasedVelocity by remember { mutableFloatStateOf(0f) }
+
             val density = LocalDensity.current
             val maxShiftPx = with(density) { 10.dp.toPx() }
+            val minimumTabX = indicatorBounds.values.minOfOrNull { it.left } ?: 0f
+            val maximumTabX = indicatorBounds.values.maxOfOrNull { it.right } ?: minimumTabX
+            val totalTabsWidth = maximumTabX - minimumTabX
+            val centerTabsX = (minimumTabX + maximumTabX) / 2f
 
-            fun dragBounds(): Rect {
-                val minimum = indicatorBounds.values.minOfOrNull { it.left } ?: 0f
-                val maximum = indicatorBounds.values.maxOfOrNull { it.right } ?: minimum
-                val width = latestActiveRect.width.coerceIn(0f, maximum - minimum)
-                val center = dragPositionX.coerceIn(minimum + width / 2, maximum - width / 2)
-                return Rect(center - width / 2, 0f, center + width / 2, 1f)
+            val targetNavbarOffset = if (isGestureActive && enableGesture && totalTabsWidth > 0f) {
+                val progress = ((rawDragX - centerTabsX) / (totalTabsWidth / 2f)).coerceIn(-1.25f, 1.25f)
+                progress * maxShiftPx
+            } else {
+                0f
             }
 
-            fun dragOffset(): Float {
-                val minimum = indicatorBounds.values.minOfOrNull { it.left } ?: return 0f
-                val maximum = indicatorBounds.values.maxOfOrNull { it.right } ?: return 0f
-                val halfWidth = (maximum - minimum) / 2
-                if (halfWidth <= 0f) return 0f
-                return ((dragPositionX - (minimum + maximum) / 2) / halfWidth)
-                    .coerceIn(-1f, 1f) * maxShiftPx
-            }
-
-            fun finishDrag(commit: Boolean) {
-                if (!isGestureActive) return
-                releasedRect = dragBounds()
-                releasedOffset = dragOffset()
-                val maximumVelocity = (indicatorBounds.values.maxOfOrNull { it.right } ?: 0f) * 3
-                releasedVelocity = if (commit) {
-                    velocityTracker.calculateVelocity().x.coerceIn(-maximumVelocity, maximumVelocity)
-                } else {
-                    0f
-                }
-                val destination = hoveredIndex
-                isGestureActive = false
-                hoveredIndex = -1
-                if (commit && destination in visibleTabs.indices && destination != selectedIndex) {
-                    latestOnTabSelected(visibleTabs[destination])
-                }
-            }
-
-            LaunchedEffect(activeRect, isGestureActive, isFloatingGestureEnabled) {
-                if (isGestureActive || activeRect.width <= 0f) return@LaunchedEffect
-                val start = releasedRect
-                val velocity = releasedVelocity
-                releasedRect = null
-                if (start != null) {
-                    indicator.snapTo(start)
-                    navbarOffset.snapTo(releasedOffset)
-                } else if (indicator.value.width <= 0f) {
-                    indicator.snapTo(activeRect)
-                }
-                coroutineScope {
-                    launch { navbarOffset.animateTo(0f, offsetSpec) }
-                    if (start != null) {
-                        indicator.animateTo(activeRect, boundsSpec, initialVelocity = Rect(velocity, 0f, velocity, 0f))
-                    } else {
-                        indicator.animateTo(activeRect, boundsSpec)
-                    }
-                }
-            }
+            val animatedNavbarOffset by animateFloatAsState(
+                targetValue = targetNavbarOffset,
+                animationSpec = spring(
+                    dampingRatio = 0.72f,
+                    stiffness = 320f
+                ),
+                label = "navbarOffset"
+            )
 
             Surface(
                 modifier = Modifier
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
-                        translationX = if (isGestureActive) dragOffset() else navbarOffset.value
+                        translationX = animatedNavbarOffset
                     },
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
                 tonalElevation = 0.dp
             ) {
+                val radiusPx = with(density) { 24.dp.toPx() }
+                val activeRect = indicatorBounds[selectedIndex] ?: Rect.Zero
+
+                val targetLeft = if (isGestureActive) dragPositionX - radiusPx else activeRect.left
+                val targetRight = if (isGestureActive) dragPositionX + radiusPx else activeRect.right
+
+                val animatedLeft by animateFloatAsState(
+                    targetValue = targetLeft,
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f),
+                    label = "indicatorLeft"
+                )
+                val animatedRight by animateFloatAsState(
+                    targetValue = targetRight,
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f),
+                    label = "indicatorRight"
+                )
                 val pillColor = MaterialTheme.colorScheme.primaryContainer
+
                 Row(
                     modifier = Modifier
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                         .height(48.dp)
                         .drawBehind {
-                            val bounds = if (isGestureActive) dragBounds() else indicator.value
-                            val left = bounds.left.coerceIn(0f, size.width)
-                            val right = bounds.right.coerceIn(left, size.width)
-                            if (right > left) {
+                            if (enableGesture && animatedRight > animatedLeft) {
                                 drawRoundRect(
                                     color = pillColor,
-                                    topLeft = androidx.compose.ui.geometry.Offset(left, 0f),
-                                    size = Size(right - left, size.height),
+                                    topLeft = Offset(animatedLeft, 0f),
+                                    size = Size(animatedRight - animatedLeft, size.height),
                                     cornerRadius = CornerRadius(size.height / 2, size.height / 2)
                                 )
                             }
                         }
-                        .pointerInput(isFloatingGestureEnabled, currentTab, maxShiftPx) {
-                            if (isFloatingGestureEnabled) {
+                        .pointerInput(enableGesture, maxShiftPx) {
+                            if (enableGesture) {
                                 detectHorizontalDragGestures(
-                                    onDragStart = { position ->
-                                        velocityTracker.resetTracking()
-                                        dragPositionX = position.x
-                                        hoveredIndex = selectedIndex
+                                    onDragStart = { offset ->
                                         isGestureActive = true
+                                        rawDragX = offset.x
+                                        dragPositionX = offset.x
+                                        hoveredIndex = latestSelectedIndex
                                     },
-                                    onDragEnd = { finishDrag(commit = true) },
-                                    onDragCancel = { finishDrag(commit = false) },
+                                    onDragEnd = {
+                                        isGestureActive = false
+                                        rawDragX = 0f
+                                        if (hoveredIndex != -1 && hoveredIndex != latestSelectedIndex) {
+                                            val dest = visibleTabs[hoveredIndex]
+                                            latestOnTabSelected(dest)
+                                        }
+                                        hoveredIndex = -1
+                                    },
+                                    onDragCancel = {
+                                        isGestureActive = false
+                                        rawDragX = 0f
+                                        hoveredIndex = -1
+                                    },
                                     onHorizontalDrag = { change, _ ->
                                         change.consume()
-                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
-                                        dragPositionX = change.position.x
-                                        hoveredIndex = indicatorBounds.minByOrNull {
-                                            abs(it.value.center.x - dragPositionX)
-                                        }?.key ?: selectedIndex
+                                        rawDragX = change.position.x
+                                        val minX = indicatorBounds.values.minOfOrNull { it.left } ?: 0f
+                                        val maxX = indicatorBounds.values.maxOfOrNull { it.right } ?: size.width.toFloat()
+                                        dragPositionX = rawDragX.coerceIn(minX, maxX)
+
+                                        val newTarget = indicatorBounds.entries.find {
+                                            it.value.left <= dragPositionX && it.value.right >= dragPositionX
+                                        }?.key
+                                        if (newTarget != null) {
+                                            hoveredIndex = newTarget
+                                        }
                                     }
                                 )
                             }
@@ -245,28 +229,55 @@ fun MagivantBottomBar(
                 ) {
                     visibleTabs.forEachIndexed { index, destination ->
                         val isCurrent = destination == currentTab
-                        val isActive = if (isGestureActive) hoveredIndex == index else isCurrent
-                        val contentColor by animateColorAsState(
-                            targetValue = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            animationSpec = colorSpec,
-                            label = "navigationContent"
+
+                        val isHovered = isGestureActive && hoveredIndex == index
+                        val isActive = (!isGestureActive && isCurrent) || isHovered
+
+                        val animationSpec = tween<Color>(durationMillis = 300, easing = FastOutSlowInEasing)
+
+                        val bgColor by animateColorAsState(
+                            targetValue = if (!enableGesture && isActive) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                Color.Transparent
+                            },
+                            animationSpec = animationSpec,
+                            label = "bgColor"
                         )
+
+                        val contentColor by animateColorAsState(
+                            targetValue = if (isActive) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            animationSpec = animationSpec,
+                            label = "contentColor"
+                        )
+
                         val interactionSource = remember { MutableInteractionSource() }
+
                         Row(
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .onPlaced { coordinates ->
-                                    val left = coordinates.positionInParent().x
-                                    val bounds = Rect(left, 0f, left + coordinates.size.width, 1f)
+                                .onPlaced { coords ->
+                                    val x = coords.positionInParent().x
+                                    val width = coords.size.width.toFloat()
+                                    val bounds = Rect(x, 0f, x + width, 0f)
                                     if (indicatorBounds[index] != bounds) indicatorBounds[index] = bounds
                                 }
                                 .clip(RoundedCornerShape(50))
+                                .background(bgColor)
                                 .selectable(
                                     selected = isCurrent,
                                     role = Role.Tab,
                                     interactionSource = interactionSource,
-                                    indication = if (isFloatingGestureEnabled) null else LocalIndication.current,
-                                    onClick = { if (!isCurrent) latestOnTabSelected(destination) }
+                                    indication = if (enableGesture || isGestureActive) null else LocalIndication.current,
+                                    onClick = {
+                                        if (!isCurrent) {
+                                            latestOnTabSelected(destination)
+                                        }
+                                    }
                                 )
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -277,11 +288,17 @@ fun MagivantBottomBar(
                                 contentDescription = destination.label,
                                 tint = contentColor
                             )
-                            // Keep hit targets stable while the finger is down.
+
                             AnimatedVisibility(
-                                visible = isCurrent,
-                                enter = expandHorizontally(sizeSpec, expandFrom = Alignment.Start) + fadeIn(effectsSpec),
-                                exit = shrinkHorizontally(sizeSpec, shrinkTowards = Alignment.Start) + fadeOut(effectsSpec)
+                                visible = isCurrent && !isGestureActive,
+                                enter = expandHorizontally(
+                                    animationSpec = tween(300, easing = FastOutSlowInEasing),
+                                    expandFrom = Alignment.Start
+                                ) + fadeIn(animationSpec = tween(300)),
+                                exit = shrinkHorizontally(
+                                    animationSpec = tween(300, easing = FastOutSlowInEasing),
+                                    shrinkTowards = Alignment.Start
+                                ) + fadeOut(animationSpec = tween(300))
                             ) {
                                 Text(
                                     text = destination.label,
@@ -307,7 +324,11 @@ fun MagivantBottomBar(
                     val isCurrent = destination == currentTab
                     NavigationBarItem(
                         selected = isCurrent,
-                        onClick = { if (!isCurrent) latestOnTabSelected(destination) },
+                        onClick = {
+                            if (!isCurrent) {
+                                latestOnTabSelected(destination)
+                            }
+                        },
                         icon = {
                             Icon(
                                 imageVector = if (isCurrent) destination.iconSelected else destination.iconNotSelected,
@@ -315,7 +336,10 @@ fun MagivantBottomBar(
                             )
                         },
                         label = {
-                            Text(destination.label, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium)
+                            Text(
+                                text = destination.label,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                            )
                         },
                         alwaysShowLabel = false
                     )

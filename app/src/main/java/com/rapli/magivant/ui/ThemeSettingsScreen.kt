@@ -52,7 +52,6 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -133,7 +132,6 @@ fun MagivantSettingsScreen(
     val systemDark = isSystemInDarkTheme()
     val isDark = appSettings.colorMode.getDarkThemeValue(systemDark)
     val isAmoled = appSettings.colorMode == ColorMode.DARKAMOLED
-    var tempDpiScale by remember(appSettings.dpiScale) { mutableFloatStateOf(appSettings.dpiScale) }
 
     val scope = rememberCoroutineScope()
     var isSavingHeader by remember { mutableStateOf(false) }
@@ -457,35 +455,45 @@ fun MagivantSettingsScreen(
         ExpressiveList(
             title = "Interface Scale",
             content = listOf {
-                ExpressiveListItem(
-                    headlineContent = { Text("UI Scale", color = cs.onSurface) },
-                    supportingContent = {
-                        Column {
-                            Text("${(tempDpiScale * 100).toInt()}%", color = cs.onSurfaceVariant)
-                            MagivantSlider(
-                                value = tempDpiScale,
-                                onValueChange = { tempDpiScale = it },
-                                steps = 9,
-                                valueRange = 0.75f..1.25f
-                            )
-                        }
-                    },
-                    leadingContent = {
-                        Icon(Icons.Filled.FormatSize, contentDescription = "UI Scale", tint = cs.primary)
-                    },
-                    trailingContent = {
-                        if (tempDpiScale != appSettings.dpiScale) {
-                            FilledTonalButton(
-                                onClick = { onUpdateDpiScale(tempDpiScale) }
-                            ) {
-                                Text("Apply", color = cs.onSecondaryContainer)
-                            }
-                        }
-                    }
+                InterfaceScaleItem(
+                    dpiScale = appSettings.dpiScale,
+                    onUpdateDpiScale = onUpdateDpiScale
                 )
             }
         )
     }
+}
+
+@Composable
+internal fun InterfaceScaleItem(
+    dpiScale: Float,
+    onUpdateDpiScale: (Float) -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    var tempDpiScale by remember(dpiScale) { mutableFloatStateOf(dpiScale) }
+
+    ExpressiveListItem(
+        headlineContent = { Text("UI Scale", color = cs.onSurface) },
+        supportingContent = {
+            Column {
+                Text("${(tempDpiScale * 100).roundToInt()}%", color = cs.onSurfaceVariant)
+                MagivantSlider(
+                    value = tempDpiScale,
+                    onValueChange = { tempDpiScale = it },
+                    onValueChangeFinished = {
+                        // Keep density and the slider's bounds stable until the gesture ends.
+                        val scale = ((tempDpiScale * 20).roundToInt() / 20f).coerceIn(0.75f, 1.25f)
+                        if (scale != dpiScale) onUpdateDpiScale(scale)
+                    },
+                    steps = 9,
+                    valueRange = 0.75f..1.25f
+                )
+            }
+        },
+        leadingContent = {
+            Icon(Icons.Filled.FormatSize, contentDescription = "UI Scale", tint = cs.primary)
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

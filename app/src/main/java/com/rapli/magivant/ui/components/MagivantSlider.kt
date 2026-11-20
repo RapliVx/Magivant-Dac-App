@@ -25,7 +25,8 @@ fun MagivantSlider(
     enabled: Boolean = true,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
-    isPending: Boolean = false
+    isPending: Boolean = false,
+    onValueChangeFinished: (() -> Unit)? = null
 ) {
     val state = remember(steps, valueRange) { SliderState(value, steps, valueRange) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -64,6 +65,7 @@ fun MagivantSlider(
         },
         modifier = modifier,
         enabled = enabled,
+        onValueChangeFinished = onValueChangeFinished,
         interactionSource = interactionSource
     )
 }

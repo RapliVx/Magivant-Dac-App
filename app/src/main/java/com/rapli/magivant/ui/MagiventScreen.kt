@@ -5,7 +5,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.AnimatedVisibility
@@ -158,7 +161,6 @@ fun MagivantScreen(
     val cs = MaterialTheme.colorScheme
     val motion = MaterialTheme.motionScheme
     val effectsSpec = motion.fastEffectsSpec<Float>()
-    val spatialOffsetSpec = motion.defaultSpatialSpec<IntOffset>()
     val spatialSizeSpec = motion.defaultSpatialSpec<IntSize>()
     val tabOffsetSpec = motion.slowSpatialSpec<IntOffset>()
     val tabEffectsSpec = motion.slowEffectsSpec<Float>()
@@ -288,8 +290,30 @@ fun MagivantScreen(
         bottomBar = {
             AnimatedVisibility(
                 visible = !appSettings.isFloatingNavbar,
-                enter = expandVertically(spatialSizeSpec, expandFrom = Alignment.Bottom) + fadeIn(effectsSpec),
-                exit = shrinkVertically(spatialSizeSpec, shrinkTowards = Alignment.Bottom) + fadeOut(effectsSpec)
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) + expandVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) + shrinkVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
             ) {
                 MagivantBottomBar(
                     currentTab = currentTab,
@@ -437,8 +461,20 @@ fun MagivantScreen(
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 AnimatedVisibility(
                     visible = appSettings.isFloatingNavbar && !isScrollingDown,
-                    enter = slideInVertically(spatialOffsetSpec) { it } + fadeIn(effectsSpec),
-                    exit = slideOutVertically(spatialOffsetSpec) { it } + fadeOut(effectsSpec)
+                    enter = slideInVertically(
+                        initialOffsetY = { it * 2 },
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    ) + fadeIn(tween(400)),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it * 2 },
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    ) + fadeOut(tween(400))
                 ) {
                     MagivantBottomBar(
                         currentTab = currentTab,
