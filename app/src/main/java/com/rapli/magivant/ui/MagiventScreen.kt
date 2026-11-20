@@ -1,7 +1,6 @@
 package com.rapli.magivant.ui
 
 import android.content.Context
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,7 +57,6 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.UsbOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -66,13 +64,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
+import com.rapli.magivant.ui.components.MagivantSlider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberSliderState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -96,7 +91,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.AsyncImage
-import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.rapli.magivant.R
@@ -160,7 +154,6 @@ fun MagivantScreen(
     var currentTab by rememberSaveable { mutableStateOf(MagivantTab.HOME) }
     var isScrollingDown by remember { mutableStateOf(false) }
     var showNewPresetDialog by remember { mutableStateOf(false) }
-    var presetToExport by remember { mutableStateOf<DacPreset?>(null) }
 
     LaunchedEffect(currentTab) {
         isScrollingDown = false
@@ -224,10 +217,7 @@ fun MagivantScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri ->
-            uri?.let {
-                viewModel.exportPresetToUri(context, it, presetToExport)
-                presetToExport = null
-            }
+            viewModel.exportPreparedPreset(context, uri)
         }
     )
 
@@ -265,7 +255,7 @@ fun MagivantScreen(
                         )
                         Text(
                             text = if (state.isConnected) {
-                                "CS43198 • FW v${state.firmwareVersion.ifEmpty { "3.0.0" }} • ${state.sampleRateText}"
+                                "CS43198 • FW v${state.firmwareVersion.ifEmpty { "Unknown" }} • ${state.sampleRateText}"
                             } else {
                                 "USB Disconnected (2FC6:F13B)"
                             },
@@ -417,7 +407,6 @@ fun MagivantScreen(
                             MagivantPresetScreen(
                                 uiState = state,
                                 presetList = presetList,
-                                volumeTable = viewModel.appVolumeIntList,
                                 bottomInnerPadding = bottomPadding,
                                 onPresetSelected = { preset ->
                                     viewModel.applyPreset(preset)
@@ -427,15 +416,13 @@ fun MagivantScreen(
                                     importLauncher.launch(arrayOf("application/json", "*/*"))
                                 },
                                 onExportClicked = { preset ->
-                                    presetToExport = preset
-                                    val defaultFileName = preset?.let { "${it.name}.json" } ?: "Magivant_Custom.json"
-                                    exportLauncher.launch(defaultFileName)
+                                    if (viewModel.preparePresetExport(preset)) {
+                                        val defaultFileName = preset?.let { "${it.name}.json" } ?: "Magivant_Custom.json"
+                                        exportLauncher.launch(defaultFileName)
+                                    }
                                 },
                                 onDeleteClicked = { toDelete ->
                                     viewModel.deletePresets(toDelete)
-                                },
-                                onSetStartupPreset = { name ->
-                                    viewModel.setStartupPresetName(name)
                                 }
                             )
                         }
@@ -478,7 +465,8 @@ fun MagivantScreen(
                                 },
                                 onUpdateStartupPreset = { presetName ->
                                     viewModel.setStartupPresetName(presetName)
-                                }
+                                },
+                                onReportError = viewModel::showError
                             )
                         }
                     }
@@ -624,7 +612,7 @@ private fun MagivantHomeScreen(
                             "1.0 Vrms (-6 dB) output level"
                         },
                         checked = uiState.isHighGain,
-                        enabled = uiState.isConnected,
+                        enabled = uiState.isConnected && uiState.hasDeviceState,
                         onCheckedChange = onGainChanged
                     )
                 },
@@ -635,7 +623,7 @@ private fun MagivantHomeScreen(
                         summary = cs43198FilterDescriptions.getOrElse(uiState.digitalFilterPos) { "" },
                         items = cs43198FilterTitles,
                         itemDescriptions = cs43198FilterDescriptions,
-                        enabled = uiState.isConnected,
+                        enabled = uiState.isConnected && uiState.hasDeviceState,
                         selectedIndex = uiState.digitalFilterPos,
                         onItemSelected = onFilterChanged
                     )
@@ -647,7 +635,7 @@ private fun MagivantHomeScreen(
                         summary = ledModeDescriptions.getOrElse(uiState.ledPos) { "" },
                         items = ledModeTitles,
                         itemDescriptions = ledModeDescriptions,
-                        enabled = uiState.isConnected,
+                        enabled = uiState.isConnected && uiState.hasDeviceState,
                         selectedIndex = uiState.ledPos,
                         onItemSelected = onLedChanged
                     )
@@ -679,11 +667,7 @@ private fun MagivantStatusBanner(
     val imageLoader = remember {
         ImageLoader.Builder(context)
             .components {
-                if (Build.VERSION.SDK_INT >= 28) {
-                    add(ImageDecoderDecoder.Factory())
-                } else {
-                    add(GifDecoder.Factory())
-                }
+                add(ImageDecoderDecoder.Factory())
             }
             .build()
     }
@@ -774,7 +758,7 @@ private fun MagivantStatusBanner(
                             )
                             Text(
                                 text = if (uiState.isConnected) {
-                                    "FW v${uiState.firmwareVersion.ifEmpty { "3.0.0" }} • ${uiState.bridgeModeText}"
+                                    "FW v${uiState.firmwareVersion.ifEmpty { "Unknown" }} • ${uiState.bridgeModeText}"
                                 } else {
                                     "Comtrue 2FC6:F13B"
                                 },
@@ -927,7 +911,7 @@ private fun MagivantStatusBanner(
                             )
                             Text(
                                 text = if (uiState.isConnected) {
-                                    "FW v${uiState.firmwareVersion.ifEmpty { "3.0.0" }}"
+                                    "FW v${uiState.firmwareVersion.ifEmpty { "Unknown" }}"
                                 } else {
                                     "VID 2FC6 : PID F13B"
                                 },
@@ -1089,25 +1073,23 @@ private fun VolumeAndBalanceCard(
                             }
                         }
 
-                        TextButton(onClick = onQuickSavePreset) {
+                        TextButton(onClick = onQuickSavePreset, enabled = uiState.hasDeviceState) {
                             Text("Save Preset")
                         }
                     }
 
-                    val volumeSliderState = rememberSliderState(
+                    MagivantSlider(
                         value = uiState.volumeIndex.toFloat(),
-                        steps = (uiState.maxVolumeIndex - 1).coerceAtLeast(0),
-                        trackRange = 0f..uiState.maxVolumeIndex.toFloat()
-                    )
-                    Slider(
-                        state = volumeSliderState,
                         onValueChange = { onVolumeChanged(it.roundToInt()) },
-                        enabled = uiState.isConnected
+                        steps = (uiState.maxVolumeIndex - 1).coerceAtLeast(0),
+                        valueRange = 0f..uiState.maxVolumeIndex.toFloat(),
+                        enabled = uiState.isConnected && uiState.hasDeviceState
                     )
 
-                    val stepButtonEnabled = uiState.isConnected && uiState.rawVolumeReg < 0xFF
-                    val boostButtonEnabled = uiState.isConnected && uiState.rawVolumeReg > 0x00
-                    val muteButtonEnabled = uiState.isConnected && uiState.rawVolumeReg != 0xFF
+                    val stepButtonEnabled = uiState.isConnected && uiState.hasDeviceState && uiState.rawVolumeReg < 0xFF
+                    val boostButtonEnabled = uiState.isConnected && uiState.hasDeviceState &&
+                        uiState.rawVolumeReg > com.rapli.magivant.usb.DacVolume.registerValues[uiState.maxVolumeIndex]
+                    val muteButtonEnabled = uiState.isConnected && uiState.hasDeviceState && uiState.rawVolumeReg != 0xFF
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1179,27 +1161,24 @@ private fun VolumeAndBalanceCard(
                         if (uiState.balanceBaseValue != 0) {
                             TextButton(
                                 onClick = { onBalanceChanged(0) },
-                                enabled = uiState.isConnected
+                                enabled = uiState.isConnected && uiState.hasDeviceState
                             ) {
                                 Text("Center (0 dB)")
                             }
                         }
                     }
 
-                    val balanceSliderState = rememberSliderState(
-                        value = uiState.balanceBaseValue.toFloat(),
-                        steps = 19,
-                        trackRange = -10f..10f
-                    )
-                    Slider(
-                        state = balanceSliderState,
+                    MagivantSlider(
+                        value = uiState.balanceBaseValue.toFloat().coerceIn(-10f, 10f),
                         onValueChange = { onBalanceChanged(it.roundToInt()) },
-                        enabled = uiState.isConnected
+                        steps = 19,
+                        valueRange = -10f..10f,
+                        enabled = uiState.isConnected && uiState.hasDeviceState
                     )
 
-                    val leftEnabled = uiState.isConnected && uiState.balanceBaseValue > -10
-                    val centerEnabled = uiState.isConnected && uiState.balanceBaseValue != 0
-                    val rightEnabled = uiState.isConnected && uiState.balanceBaseValue < 10
+                    val leftEnabled = uiState.isConnected && uiState.hasDeviceState && uiState.balanceBaseValue > -10
+                    val centerEnabled = uiState.isConnected && uiState.hasDeviceState && uiState.balanceBaseValue != 0
+                    val rightEnabled = uiState.isConnected && uiState.hasDeviceState && uiState.balanceBaseValue < 10
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)

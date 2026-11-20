@@ -8,92 +8,99 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.Locale
 import kotlin.math.pow
 
-class UsbDacManager(private val usbManager: UsbManager) {
-    private val c1: Byte = 0xC1.toByte()
-    private val a7: Byte = 0xA7.toByte()
+class UsbDacManager(private val usbManager: UsbManager) : DacConnection {
     private val transferMutex = Mutex()
-
-    var targetDevice: UsbDevice? = null
     private var activeConnection: UsbDeviceConnection? = null
+    private var activeSession: Long? = null
 
-    val isOpened: Boolean
-        get() = activeConnection != null
-
-    fun openConnection(): Boolean {
-        val device = targetDevice ?: return false
-        if (activeConnection == null) {
-            try {
+    override suspend fun openConnection(device: UsbDevice, sessionId: Long) {
+        transferMutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    activeConnection?.close()
+                } finally {
+                    activeConnection = null
+                    activeSession = null
+                }
                 activeConnection = usbManager.openDevice(device)
-            } catch (e: Exception) {
-                e.printStackTrace()
+                    ?: throw IOException("Cannot open the DAC. Check USB permission and reconnect.")
+                activeSession = sessionId
             }
-        }
-        return activeConnection != null
-    }
-
-    fun closeConnection() {
-        try {
-            activeConnection?.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            activeConnection = null
-            targetDevice = null
         }
     }
 
-    // Serialize two-step vendor control transfers on wIndex 0x09A0 so live telemetry polling never collides with register writes.
-    suspend fun sendCommand(commandId: Byte, value1: Byte, value2: Byte = 0, value3: Byte = 0): Boolean =
+    override suspend fun closeConnection(sessionId: Long) {
         transferMutex.withLock {
             withContext(Dispatchers.IO) {
-                val connection = activeConnection ?: return@withContext false
-
-                val payload = ByteArray(7)
-                payload[0] = c1
-                payload[1] = a7
-                payload[2] = commandId
-                payload[3] = value1
-                payload[4] = value2
-                payload[5] = value3
-
-                var sum = 0
-                for (i in 0..5) sum += payload[i]
-                payload[6] = (sum and 0xFF).toByte()
-
-                val transferred = connection.controlTransfer(67, 160, 0, 2464, payload, 7, 3000)
-                transferred >= 0
-            }
-        }
-
-    suspend fun readData(commandId: Byte): ByteArray? =
-        transferMutex.withLock {
-            withContext(Dispatchers.IO) {
-                val connection = activeConnection ?: return@withContext null
-                var resultData: ByteArray? = null
-
-                val payload = byteArrayOf(c1, a7, commandId, 0, 0, 0, 0)
-                var sum = 0
-                for (i in 0..5) sum += payload[i]
-                payload[6] = (sum and 0xFF).toByte()
-
-                val writeResult = connection.controlTransfer(67, 160, 0, 2464, payload, 7, 3000)
-
-                if (writeResult >= 0) {
-                    delay(10)
-                    val buffer = ByteArray(7)
-                    val bytesRead = connection.controlTransfer(195, 161, 0, 2464, buffer, 7, 3000)
-
-                    if (bytesRead == 7) {
-                        resultData = buffer
+                if (activeSession == sessionId) {
+                    try {
+                        activeConnection?.close()
+                    } finally {
+                        activeConnection = null
+                        activeSession = null
                     }
                 }
-
-                return@withContext resultData
             }
         }
+    }
+
+    // Opening, closing, and both steps of a read share the same transfer lock.
+    override suspend fun sendCommand(
+        sessionId: Long,
+        commandId: Byte,
+        value1: Byte,
+        value2: Byte,
+        value3: Byte
+    ) {
+        transferMutex.withLock {
+            withContext(Dispatchers.IO) {
+                val connection = requireConnection(sessionId)
+                val payload = createPayload(commandId, value1, value2, value3)
+                val transferred = connection.controlTransfer(67, 160, 0, 2464, payload, payload.size, 3000)
+                if (transferred != payload.size) throw IOException("USB command failed ($transferred/7 bytes).")
+            }
+        }
+    }
+
+    override suspend fun readData(sessionId: Long, commandId: Byte): ByteArray =
+        transferMutex.withLock {
+            withContext(Dispatchers.IO) {
+                val connection = requireConnection(sessionId)
+                val payload = createPayload(commandId)
+                val written = connection.controlTransfer(67, 160, 0, 2464, payload, payload.size, 3000)
+                if (written != payload.size) throw IOException("USB read request failed ($written/7 bytes).")
+                delay(10)
+                val buffer = ByteArray(7)
+                val bytesRead = connection.controlTransfer(195, 161, 0, 2464, buffer, buffer.size, 3000)
+                if (bytesRead != buffer.size) throw IOException("USB response failed ($bytesRead/7 bytes).")
+                buffer
+            }
+        }
+
+    private fun requireConnection(sessionId: Long): UsbDeviceConnection {
+        if (activeSession != sessionId) throw IOException("The USB session has ended.")
+        return activeConnection ?: throw IOException("The DAC is disconnected.")
+    }
+
+    companion object {
+        fun isSupportedDevice(device: UsbDevice): Boolean =
+            device.vendorId == 0x2FC6 && device.productId in listOf(0xF13A, 0xF13B)
+
+        internal fun createPayload(
+            commandId: Byte,
+            value1: Byte = 0,
+            value2: Byte = 0,
+            value3: Byte = 0
+        ): ByteArray {
+            val payload = byteArrayOf(0xC1.toByte(), 0xA7.toByte(), commandId, value1, value2, value3, 0)
+            payload[6] = (payload.take(6).sumOf { it.toInt() } and 0xFF).toByte()
+            return payload
+        }
+    }
 }
 
 object Cs43198Spec {

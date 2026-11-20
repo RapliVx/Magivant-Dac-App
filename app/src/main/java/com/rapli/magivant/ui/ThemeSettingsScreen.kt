@@ -1,7 +1,6 @@
 package com.rapli.magivant.ui
 
 import android.app.Activity
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,8 +22,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -43,7 +40,6 @@ import androidx.compose.material.icons.filled.Brightness1
 import androidx.compose.material.icons.filled.Brightness3
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Brightness7
-import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Hearing
@@ -56,25 +52,22 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.expressiveLightColorScheme
-import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -86,8 +79,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.Role
@@ -96,26 +88,25 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.ImageLoader
-import coil.compose.AsyncImage
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.request.ImageRequest
 import com.materialkolor.rememberDynamicColorScheme
 import com.rapli.magivant.R
 import com.rapli.magivant.ui.components.ExpressiveDropdownItem
 import com.rapli.magivant.ui.components.ExpressiveList
+import com.rapli.magivant.ui.components.MagivantSlider
 import com.rapli.magivant.ui.components.ExpressiveListItem
 import com.rapli.magivant.ui.components.ExpressiveSwitchItem
 import com.rapli.magivant.ui.theme.AppSettings
 import com.rapli.magivant.ui.theme.ColorMode
 import com.rapli.magivant.ui.theme.keyColorOptions
 import com.rapli.magivant.ui.util.clearCustomHeaderImage
-import com.rapli.magivant.ui.util.copyUriToInternalStorage
 import com.rapli.magivant.ui.util.saveHeaderImage
 import com.rapli.magivant.usb.Cs43198Spec
 import com.yalantis.ucrop.UCrop
 import java.io.File
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -134,7 +125,8 @@ fun MagivantSettingsScreen(
     onUpdateClassicBanner: (Boolean) -> Unit,
     onUpdateCustomHeaderUri: (String?) -> Unit,
     onUpdateMaxVolumeLimit: (Int) -> Unit,
-    onUpdateStartupPreset: (String) -> Unit
+    onUpdateStartupPreset: (String) -> Unit,
+    onReportError: (String) -> Unit
 ) {
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
@@ -143,14 +135,31 @@ fun MagivantSettingsScreen(
     val isAmoled = appSettings.colorMode == ColorMode.DARKAMOLED
     var tempDpiScale by remember(appSettings.dpiScale) { mutableFloatStateOf(appSettings.dpiScale) }
 
+    val scope = rememberCoroutineScope()
+    var isSavingHeader by remember { mutableStateOf(false) }
+    var pendingCropPath by rememberSaveable { mutableStateOf<String?>(null) }
+
     val cropLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val resultUri = result.data?.let { UCrop.getOutput(it) }
-            resultUri?.let {
-                context.saveHeaderImage(it.toString())
-                onUpdateCustomHeaderUri(it.toString())
+        val cropPath = pendingCropPath
+        pendingCropPath = null
+        scope.launch {
+            isSavingHeader = true
+            try {
+                if (result.resultCode == Activity.RESULT_OK) {
+                    val uri = requireNotNull(result.data?.let { UCrop.getOutput(it) }) { "The cropped image is unavailable." }
+                    onUpdateCustomHeaderUri(context.saveHeaderImage(uri.toString()))
+                } else if (result.resultCode == UCrop.RESULT_ERROR) {
+                    onReportError(result.data?.let { UCrop.getError(it) }?.message ?: "Cannot crop the selected image.")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onReportError("Cannot save header image: ${e.message}")
+            } finally {
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { cropPath?.let { File(it).delete() } }
+                isSavingHeader = false
             }
         }
     }
@@ -158,40 +167,39 @@ fun MagivantSettingsScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let {
-            val mimeType = context.contentResolver.getType(it)
-            if (mimeType?.contains("gif", ignoreCase = true) == true) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        it,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                    context.saveHeaderImage(it.toString())
-                    onUpdateCustomHeaderUri(it.toString())
-                } catch (e: Exception) {
-                    val internalUri = context.copyUriToInternalStorage(it)
-                    internalUri?.let { savedUri ->
-                        context.saveHeaderImage(savedUri.toString())
-                        onUpdateCustomHeaderUri(savedUri.toString())
+        if (uri != null) scope.launch {
+            isSavingHeader = true
+            try {
+                val mimeType = withContext(Dispatchers.IO) { context.contentResolver.getType(uri) }
+                if (mimeType?.contains("gif", ignoreCase = true) == true) {
+                    onUpdateCustomHeaderUri(context.saveHeaderImage(uri.toString()))
+                } else {
+                    val destination = withContext(Dispatchers.IO) {
+                        File.createTempFile("cropped_header_", ".jpg", context.cacheDir)
                     }
+                    pendingCropPath = destination.absolutePath
+                    val options = UCrop.Options().apply {
+                        setToolbarColor(cs.surface.toArgb())
+                        setToolbarWidgetColor(cs.onSurface.toArgb())
+                        setActiveControlsWidgetColor(cs.primary.toArgb())
+                        setRootViewBackgroundColor(cs.surface.toArgb())
+                        setCropFrameColor(cs.primary.toArgb())
+                        setFreeStyleCropEnabled(true)
+                    }
+                    val uCrop = UCrop.of(uri, Uri.fromFile(destination))
+                        .withAspectRatio(16f, 9f)
+                        .withMaxResultSize(1600, 900)
+                        .withOptions(options)
+                    cropLauncher.launch(uCrop.getIntent(context))
                 }
-            } else {
-                val destinationUri = Uri.fromFile(
-                    File(context.filesDir, "cropped_header_${System.currentTimeMillis()}.jpg")
-                )
-                val options = UCrop.Options().apply {
-                    setToolbarColor(cs.surface.toArgb())
-                    setToolbarWidgetColor(cs.onSurface.toArgb())
-                    setActiveControlsWidgetColor(cs.primary.toArgb())
-                    setRootViewBackgroundColor(cs.surface.toArgb())
-                    setCropFrameColor(cs.primary.toArgb())
-                    setFreeStyleCropEnabled(true)
-                }
-                val uCrop = UCrop.of(it, destinationUri)
-                    .withAspectRatio(16f, 9f)
-                    .withMaxResultSize(1600, 900)
-                    .withOptions(options)
-                cropLauncher.launch(uCrop.getIntent(context))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onReportError("Cannot open header image: ${e.message}")
+                withContext(Dispatchers.IO) { pendingCropPath?.let { File(it).delete() } }
+                pendingCropPath = null
+            } finally {
+                isSavingHeader = false
             }
         }
     }
@@ -219,8 +227,7 @@ fun MagivantSettingsScreen(
             isDark = isDark,
             isAmoled = isAmoled,
             enableFloatingNav = appSettings.isFloatingNavbar,
-            useClassicLayout = appSettings.isClassicBanner,
-            dpiScale = appSettings.dpiScale
+            useClassicLayout = appSettings.isClassicBanner
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -316,12 +323,24 @@ fun MagivantSettingsScreen(
                             "Default header image"
                         },
                         checked = appSettings.customHeaderUri != null,
+                        enabled = !isSavingHeader,
                         onCheckedChange = { checked ->
                             if (checked) {
                                 imagePickerLauncher.launch("image/*")
                             } else {
-                                context.clearCustomHeaderImage()
-                                onUpdateCustomHeaderUri(null)
+                                scope.launch {
+                                    isSavingHeader = true
+                                    try {
+                                        context.clearCustomHeaderImage()
+                                        onUpdateCustomHeaderUri(null)
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        onReportError("Cannot clear header image: ${e.message}")
+                                    } finally {
+                                        isSavingHeader = false
+                                    }
+                                }
                             }
                         }
                     )
@@ -331,7 +350,7 @@ fun MagivantSettingsScreen(
                     add {
                         ExpressiveListItem(
                             onClick = {
-                                imagePickerLauncher.launch("image/*")
+                                if (!isSavingHeader) imagePickerLauncher.launch("image/*")
                             },
                             headlineContent = { Text("Select Image or GIF", color = cs.onSurface) },
                             supportingContent = { Text("16:9 crop or animated GIF", color = cs.onSurfaceVariant) },
@@ -404,14 +423,11 @@ fun MagivantSettingsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = cs.onSurfaceVariant
                                 )
-                                val maxVolumeSliderState = rememberSliderState(
+                                MagivantSlider(
                                     value = uiState.maxVolumeIndex.toFloat(),
+                                    onValueChange = { onUpdateMaxVolumeLimit(it.roundToInt()) },
                                     steps = 49,
-                                    trackRange = 10f..60f
-                                )
-                                Slider(
-                                    state = maxVolumeSliderState,
-                                    onValueChange = { onUpdateMaxVolumeLimit(it.roundToInt()) }
+                                    valueRange = 10f..60f
                                 )
                             }
                         },
@@ -446,14 +462,11 @@ fun MagivantSettingsScreen(
                     supportingContent = {
                         Column {
                             Text("${(tempDpiScale * 100).toInt()}%", color = cs.onSurfaceVariant)
-                            val scaleSliderState = rememberSliderState(
+                            MagivantSlider(
                                 value = tempDpiScale,
+                                onValueChange = { tempDpiScale = it },
                                 steps = 9,
-                                trackRange = 0.75f..1.25f
-                            )
-                            Slider(
-                                state = scaleSliderState,
-                                onValueChange = { tempDpiScale = it }
+                                valueRange = 0.75f..1.25f
                             )
                         }
                     },
@@ -589,13 +602,10 @@ private fun ThemePreviewCard(
     isDark: Boolean,
     isAmoled: Boolean,
     enableFloatingNav: Boolean,
-    useClassicLayout: Boolean,
-    dpiScale: Float
+    useClassicLayout: Boolean
 ) {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.toFloat()
-    val screenHeight = configuration.screenHeightDp.toFloat()
-    val screenRatio = screenWidth / screenHeight
+    val windowSize = LocalWindowInfo.current.containerSize
+    val screenRatio = windowSize.width.coerceAtLeast(1).toFloat() / windowSize.height.coerceAtLeast(1)
     val colorScheme = when {
         keyColor == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             rememberDynamicColorScheme(
@@ -616,14 +626,6 @@ private fun ThemePreviewCard(
         }
     }
 
-    val systemDensity = androidx.compose.ui.platform.LocalDensity.current
-    val customDensity = remember(systemDensity, dpiScale) {
-        androidx.compose.ui.unit.Density(
-            density = systemDensity.density * dpiScale,
-            fontScale = systemDensity.fontScale * dpiScale
-        )
-    }
-
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Surface(
             modifier = Modifier
@@ -634,87 +636,45 @@ private fun ThemePreviewCard(
             border = BorderStroke(2.dp, color = MaterialTheme.colorScheme.outlineVariant),
             shadowElevation = 8.dp
         ) {
-            CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides customDensity) {
-                Column {
-                    Box(
-                        modifier = Modifier
-                            .height(56.dp)
-                            .fillMaxWidth()
-                            .background(colorScheme.surfaceContainer),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            text = "Magivant DAC",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
+            Column {
+                Box(
+                    modifier = Modifier
+                        .height(56.dp)
+                        .fillMaxWidth()
+                        .background(colorScheme.surfaceContainer),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = "Magivant DAC",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .background(colorScheme.surface),
-                        contentAlignment = Alignment.TopCenter
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(colorScheme.surface),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            if (useClassicLayout) {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Surface(
-                                        color = colorScheme.secondaryContainer,
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.fillMaxWidth().height(72.dp)
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
-                                            Surface(color = colorScheme.primary, shape = RoundedCornerShape(4.dp), modifier = Modifier.width(36.dp).height(8.dp)) {}
-                                        }
-                                    }
-                                    Surface(
-                                        color = colorScheme.surfaceVariant,
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.fillMaxWidth().height(56.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxSize().padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Box(modifier = Modifier.size(24.dp).background(colorScheme.primaryContainer, CircleShape))
-                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(48.dp).height(6.dp)) {}
-                                                Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.4f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(32.dp).height(4.dp)) {}
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().height(72.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        if (useClassicLayout) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(
+                                    color = colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.fillMaxWidth().height(72.dp)
                                 ) {
-                                    Surface(
-                                        color = colorScheme.secondaryContainer,
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.weight(0.6f).fillMaxHeight()
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
-                                            Surface(color = colorScheme.primary, shape = RoundedCornerShape(4.dp), modifier = Modifier.width(36.dp).height(8.dp)) {}
-                                        }
-                                    }
-                                    Column(
-                                        modifier = Modifier.weight(0.4f).fillMaxHeight(),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Surface(color = colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {}
-                                        Surface(color = colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {}
+                                    Box(modifier = Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
+                                        Surface(color = colorScheme.primary, shape = RoundedCornerShape(4.dp), modifier = Modifier.width(36.dp).height(8.dp)) {}
                                     }
                                 }
-
                                 Surface(
                                     color = colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(16.dp),
@@ -733,50 +693,90 @@ private fun ThemePreviewCard(
                                     }
                                 }
                             }
-                        }
-                    }
-
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                        if (enableFloatingNav) {
-                            Surface(
-                                modifier = Modifier.padding(bottom = 12.dp).height(40.dp).padding(horizontal = 24.dp),
-                                shape = RoundedCornerShape(50),
-                                color = colorScheme.surfaceContainerHigh
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().height(72.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                Surface(
+                                    color = colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.weight(0.6f).fillMaxHeight()
                                 ) {
-                                    Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(24.dp).width(40.dp)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
-                                        }
+                                    Box(modifier = Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
+                                        Surface(color = colorScheme.primary, shape = RoundedCornerShape(4.dp), modifier = Modifier.width(36.dp).height(8.dp)) {}
                                     }
-                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
-                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
-                                    Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                                }
+                                Column(
+                                    modifier = Modifier.weight(0.4f).fillMaxHeight(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Surface(color = colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {}
+                                    Surface(color = colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {}
                                 }
                             }
-                        } else {
+
                             Surface(
-                                color = colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                color = colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth().height(56.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    modifier = Modifier.fillMaxSize().padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(28.dp).width(48.dp)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
-                                        }
+                                    Box(modifier = Modifier.size(24.dp).background(colorScheme.primaryContainer, CircleShape))
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(48.dp).height(6.dp)) {}
+                                        Surface(color = colorScheme.onSurfaceVariant.copy(alpha = 0.4f), shape = RoundedCornerShape(2.dp), modifier = Modifier.width(32.dp).height(4.dp)) {}
                                     }
-                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
-                                    Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
-                                    Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
                                 }
+                            }
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+                    if (enableFloatingNav) {
+                        Surface(
+                            modifier = Modifier.padding(bottom = 12.dp).height(40.dp).padding(horizontal = 24.dp),
+                            shape = RoundedCornerShape(50),
+                            color = colorScheme.surfaceContainerHigh
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(24.dp).width(40.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
+                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
+                                Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    } else {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Surface(shape = RoundedCornerShape(50), color = colorScheme.primaryContainer, modifier = Modifier.height(28.dp).width(48.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(4.dp)))
+                                Box(modifier = Modifier.size(14.dp).background(colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape))
+                                Icon(Icons.Outlined.Tune, contentDescription = null, tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
                             }
                         }
                     }

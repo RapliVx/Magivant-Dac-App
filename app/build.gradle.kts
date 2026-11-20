@@ -1,3 +1,6 @@
+import java.security.KeyStore
+import java.security.PrivateKey
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -9,6 +12,30 @@ apksign {
     storePasswordProperty = "KEYSTORE_PASSWORD"
     keyAliasProperty = "KEY_ALIAS"
     keyPasswordProperty = "KEY_PASSWORD"
+}
+
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    doLast {
+        val names = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+        val properties = names.associateWith { providers.gradleProperty(it).orNull }
+        check(properties.values.all { !it.isNullOrBlank() }) {
+            "Release signing requires KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD."
+        }
+        val keystoreFile = rootProject.file(requireNotNull(properties["KEYSTORE_FILE"]))
+        check(keystoreFile.isFile) { "The release keystore file does not exist." }
+        val keystore = KeyStore.getInstance(
+            keystoreFile, requireNotNull(properties["KEYSTORE_PASSWORD"]).toCharArray()
+        )
+        val alias = requireNotNull(properties["KEY_ALIAS"])
+        check(keystore.isKeyEntry(alias)) { "The release key alias does not contain a private key." }
+        check(keystore.getKey(alias, requireNotNull(properties["KEY_PASSWORD"]).toCharArray()) is PrivateKey) {
+            "The release signing private key is unavailable."
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "preReleaseBuild") dependsOn(verifyReleaseSigning)
 }
 
 android {
@@ -67,6 +94,8 @@ dependencies {
     implementation(libs.gson)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -261,7 +261,6 @@ fun ExpressiveSwitchItem(
     val interactionSource = remember { MutableInteractionSource() }
 
     ExpressiveListItem(
-        onClick = { onCheckedChange(!checked) },
         modifier = Modifier.toggleable(
             value = checked,
             interactionSource = interactionSource,
@@ -276,7 +275,7 @@ fun ExpressiveSwitchItem(
             Switch(
                 checked = checked,
                 enabled = enabled,
-                onCheckedChange = onCheckedChange,
+                onCheckedChange = null,
                 interactionSource = interactionSource
             )
         },
@@ -368,10 +367,9 @@ fun ExpressiveRadioItem(
     onClick: () -> Unit,
 ) {
     ExpressiveListItem(
-        onClick = onClick,
-        modifier = Modifier.toggleable(
-            value = selected,
-            onValueChange = { onClick() },
+        modifier = Modifier.selectable(
+            selected = selected,
+            onClick = onClick,
             enabled = enabled,
             role = Role.RadioButton
         ),
@@ -398,7 +396,6 @@ fun ExpressiveCheckboxItem(
     val interactionSource = remember { MutableInteractionSource() }
 
     ExpressiveListItem(
-        onClick = { onCheckedChange(!checked) },
         modifier = Modifier.toggleable(
             value = checked,
             interactionSource = interactionSource,
@@ -412,7 +409,7 @@ fun ExpressiveCheckboxItem(
             Checkbox(
                 checked = checked,
                 enabled = enabled,
-                onCheckedChange = onCheckedChange,
+                onCheckedChange = null,
                 interactionSource = interactionSource,
                 modifier = Modifier.size(24.dp)
             )

@@ -62,7 +62,7 @@ object ThemeController {
             prefs.getInt("color_mode", ColorMode.SYSTEM.value)
         )
         val keyColor = prefs.getInt("key_color", 0)
-        val dpiScale = prefs.getFloat("app_dpi", 1.0f)
+        val dpiScale = prefs.getFloat("app_dpi", 1.0f).let { if (it.isFinite()) it.coerceIn(0.75f, 1.25f) else 1.0f }
         val isFloatingNavbar = prefs.getBoolean("floating_navbar", true)
         val isFloatingNavbarGesture = prefs.getBoolean("floating_navbar_gesture", true)
         val isClassicBanner = prefs.getBoolean("classic_banner", false)

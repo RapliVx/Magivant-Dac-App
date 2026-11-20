@@ -23,8 +23,6 @@ import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -63,14 +61,12 @@ private val filterShortLabels = listOf(
 fun MagivantPresetScreen(
     uiState: DacUiState,
     presetList: List<DacPreset>,
-    volumeTable: List<Int>,
     bottomInnerPadding: Dp,
     onPresetSelected: (DacPreset) -> Unit,
     onNewClicked: () -> Unit,
     onImportClicked: () -> Unit,
     onExportClicked: (DacPreset?) -> Unit,
-    onDeleteClicked: (List<DacPreset>) -> Unit,
-    onSetStartupPreset: (String) -> Unit
+    onDeleteClicked: (List<DacPreset>) -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
     var selectedItems by remember(presetList) { mutableStateOf(setOf<DacPreset>()) }
@@ -105,6 +101,7 @@ fun MagivantPresetScreen(
 
         if (presetList.isEmpty()) {
             EmptyPresetStateCard(
+                canSave = uiState.hasDeviceState,
                 onNewClicked = onNewClicked,
                 onImportClicked = onImportClicked
             )
@@ -126,7 +123,7 @@ fun MagivantPresetScreen(
                 val isSelected = selectedItems.contains(preset)
                 val isActive = uiState.activePresetName == preset.name
                 val isStartup = uiState.startupPresetName == preset.name
-                val regByte = volumeTable.getOrElse(preset.volumeIndex) { 0x30 }
+                val regByte = preset.volumeRegister
                 val dbText = Cs43198Spec.formatDbFs(regByte)
                 val gainText = if (preset.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
                 val filterText = filterShortLabels.getOrElse(preset.digitalFilterPos) { "Filter ${preset.digitalFilterPos}" }
@@ -135,7 +132,7 @@ fun MagivantPresetScreen(
                     onClick = {
                         if (isSelectionMode) {
                             selectedItems = if (isSelected) selectedItems - preset else selectedItems + preset
-                        } else {
+                        } else if (uiState.hasDeviceState) {
                             onPresetSelected(preset)
                         }
                     },
@@ -217,6 +214,7 @@ fun MagivantPresetScreen(
                                 }
                                 FilledTonalButton(
                                     onClick = { onPresetSelected(preset) },
+                                    enabled = uiState.hasDeviceState && !uiState.isSyncing,
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
@@ -323,6 +321,7 @@ private fun PresetActionHeader(
                 ) {
                     Button(
                         onClick = onNewClicked,
+                        enabled = uiState.hasDeviceState,
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
@@ -345,7 +344,8 @@ private fun PresetActionHeader(
                         Text("Import")
                     }
                     OutlinedButton(
-                        onClick = onExportCurrentClicked
+                        onClick = onExportCurrentClicked,
+                        enabled = uiState.hasDeviceState
                     ) {
                         Text("Export")
                     }
@@ -357,6 +357,7 @@ private fun PresetActionHeader(
 
 @Composable
 private fun EmptyPresetStateCard(
+    canSave: Boolean,
     onNewClicked: () -> Unit,
     onImportClicked: () -> Unit
 ) {
@@ -392,7 +393,7 @@ private fun EmptyPresetStateCard(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(onClick = onNewClicked) {
+                Button(onClick = onNewClicked, enabled = canSave) {
                     Text("Save Current State")
                 }
                 OutlinedButton(onClick = onImportClicked) {
@@ -420,7 +421,7 @@ fun NewPresetInputDialog(
         text = {
             OutlinedTextField(
                 value = presetName,
-                onValueChange = { presetName = it },
+                onValueChange = { presetName = it.take(80) },
                 label = { Text("Preset Name") },
                 placeholder = { Text("e.g. IEM Low Gain") },
                 singleLine = true,
