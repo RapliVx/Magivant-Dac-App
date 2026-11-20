@@ -488,6 +488,7 @@ fun MagivantSettingsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ColorButton(
     color: Color,
@@ -497,6 +498,7 @@ private fun ColorButton(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val motion = MaterialTheme.motionScheme
     val colorScheme = if (color == Color.Unspecified) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (isDark) dynamicDarkColorScheme(context)
@@ -514,6 +516,7 @@ private fun ColorButton(
 
     val innerCornerRadius by animateDpAsState(
         targetValue = if (isSelected) 24.dp else 16.dp,
+        animationSpec = motion.fastSpatialSpec(),
         label = "innerCornerRadius"
     )
 
@@ -543,6 +546,7 @@ private fun ColorButton(
 
             val scale by animateFloatAsState(
                 targetValue = if (isSelected) 1.1f else 1.0f,
+                animationSpec = motion.fastSpatialSpec(),
                 label = "colorButtonScale"
             )
             Box(
@@ -554,8 +558,8 @@ private fun ColorButton(
             ) {
                 AnimatedVisibility(
                     visible = isSelected,
-                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
+                    enter = fadeIn(motion.fastEffectsSpec()) + scaleIn(motion.fastSpatialSpec(), initialScale = 0.8f),
+                    exit = fadeOut(motion.fastEffectsSpec()) + scaleOut(motion.fastSpatialSpec(), targetScale = 0.8f)
                 ) {
                     Box(
                         modifier = Modifier
@@ -581,8 +585,8 @@ private fun ColorButton(
                 }
                 AnimatedVisibility(
                     visible = !isSelected,
-                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
+                    enter = fadeIn(motion.fastEffectsSpec()) + scaleIn(motion.fastSpatialSpec(), initialScale = 0.8f),
+                    exit = fadeOut(motion.fastEffectsSpec()) + scaleOut(motion.fastSpatialSpec(), targetScale = 0.8f)
                 ) {
                     Box(
                         modifier = Modifier

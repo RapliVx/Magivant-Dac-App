@@ -12,10 +12,12 @@ import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.core.view.WindowInsetsControllerCompat
+import com.materialkolor.ktx.animateColorScheme
 import com.materialkolor.rememberDynamicColorScheme
 import com.rapli.magivant.ui.util.getHeaderImage
 
@@ -112,18 +114,24 @@ fun MAGIVANTDACTheme(
         }
     }
 
-    LaunchedEffect(darkTheme) {
+    val motionScheme = MotionScheme.expressive()
+    val animatedColorScheme = animateColorScheme(
+        colorScheme = colorScheme,
+        animationSpec = { motionScheme.fastEffectsSpec() }
+    )
+    val useDarkSystemIcons = animatedColorScheme.surface.luminance() > 0.5f
+    LaunchedEffect(useDarkSystemIcons) {
         val window = (context as? Activity)?.window ?: return@LaunchedEffect
         WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = !darkTheme
-            isAppearanceLightNavigationBars = !darkTheme
+            isAppearanceLightStatusBars = useDarkSystemIcons
+            isAppearanceLightNavigationBars = useDarkSystemIcons
         }
     }
 
     MaterialExpressiveTheme(
-        colorScheme = colorScheme,
+        colorScheme = animatedColorScheme,
         typography = Typography,
-        motionScheme = MotionScheme.expressive(),
+        motionScheme = motionScheme,
         content = content
     )
 }

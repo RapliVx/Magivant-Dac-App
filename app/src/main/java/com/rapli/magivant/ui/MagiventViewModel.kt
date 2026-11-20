@@ -44,6 +44,8 @@ data class DacUiState(
     val volumeIndex: Int = 36,
     val rawVolumeReg: Int = 0x30,
     val balanceBaseValue: Int = 0,
+    val isVolumePending: Boolean = false,
+    val isBalancePending: Boolean = false,
     val isHighGain: Boolean = false,
     val digitalFilterPos: Int = 0,
     val ledPos: Int = 0,
@@ -77,6 +79,9 @@ class MagivantViewModel(
     private var sessionId = 0L
     private var sessionJob: Job? = null
     private var deviceScope: CoroutineScope? = null
+    private var nextControlRequestId = 0L
+    private var volumeRequestId = 0L
+    private var balanceRequestId = 0L
     private var volumeJob: Job? = null
     private var balanceJob: Job? = null
     private var limitJob: Job? = null
@@ -324,9 +329,35 @@ class MagivantViewModel(
         _uiState.update { it.copy(startupPresetName = presetName) }
     }
 
+    private fun queueControlUpdate(isVolume: Boolean, operation: suspend (Long) -> Unit) {
+        if (!_uiState.value.hasDeviceState) return
+        val requestId = ++nextControlRequestId
+        if (isVolume) {
+            volumeRequestId = requestId
+            _uiState.update { it.copy(isVolumePending = true) }
+            volumeJob?.cancel()
+        } else {
+            balanceRequestId = requestId
+            _uiState.update { it.copy(isBalancePending = true) }
+            balanceJob?.cancel()
+        }
+        val job = launchDeviceOperation(operation = operation)
+        fun finishRequest() {
+            viewModelScope.launch {
+                val latestId = if (isVolume) volumeRequestId else balanceRequestId
+                if (latestId == requestId) {
+                    _uiState.update {
+                        if (isVolume) it.copy(isVolumePending = false) else it.copy(isBalancePending = false)
+                    }
+                }
+            }
+        }
+        if (job == null) finishRequest() else job.invokeOnCompletion { finishRequest() }
+        if (isVolume) volumeJob = job else balanceJob = job
+    }
+
     fun setVolume(index: Int) {
-        volumeJob?.cancel()
-        volumeJob = launchDeviceOperation { id ->
+        queueControlUpdate(isVolume = true) { id ->
             val raw = appVolumeIntList[index.coerceIn(0, _uiState.value.maxVolumeIndex)]
             sendCommand(id, 4, raw.toByte())
             syncVolume(id)
@@ -350,8 +381,7 @@ class MagivantViewModel(
     }
 
     fun setBalance(balance: Int) {
-        balanceJob?.cancel()
-        balanceJob = launchDeviceOperation { id ->
+        queueControlUpdate(isVolume = false) { id ->
             sendBalance(id, balance.coerceIn(-10, 10))
             syncVolume(id)
             updateActivePreset()

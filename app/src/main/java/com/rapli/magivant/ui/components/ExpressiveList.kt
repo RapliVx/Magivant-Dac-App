@@ -27,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -131,6 +132,7 @@ fun ExpressiveList(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun <T> ExpressiveLazyList(
     modifier: Modifier = Modifier,
@@ -142,6 +144,7 @@ fun <T> ExpressiveLazyList(
     header: (@Composable () -> Unit)? = null,
     itemContent: @Composable (index: Int, item: T) -> Unit
 ) {
+    val motion = MaterialTheme.motionScheme
     Column(modifier = modifier) {
         if (title.isNotEmpty()) {
             Text(
@@ -176,6 +179,11 @@ fun <T> ExpressiveLazyList(
                 }
                 Column(
                     modifier = Modifier
+                        .animateItem(
+                            fadeInSpec = motion.fastEffectsSpec(),
+                            placementSpec = motion.defaultSpatialSpec(),
+                            fadeOutSpec = motion.fastEffectsSpec()
+                        )
                         .clip(shape)
                         .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
                 ) {

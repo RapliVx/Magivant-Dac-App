@@ -242,6 +242,52 @@ class MagivantViewModelTest {
         assertFalse(dnd.active)
     }
 
+    @Test
+    fun latestVolumeRequest_staysPendingUntilItsOwnReadback() = runModelTest {
+        model.connectToDevice(device("dac"))
+        advanceTimeBy(300)
+        model.setVolume(20)
+        runCurrent()
+        assertTrue(model.uiState.value.isVolumePending)
+        model.setVolume(40)
+        runCurrent()
+        assertTrue(model.uiState.value.isVolumePending)
+        advanceTimeBy(200)
+        assertFalse(model.uiState.value.isVolumePending)
+        assertEquals(40, model.uiState.value.volumeIndex)
+    }
+
+    @Test
+    fun failedVolumeRequest_clearsPendingWithoutChangingConfirmedVolume() = runModelTest {
+        model.connectToDevice(device("dac"))
+        advanceTimeBy(300)
+        val previous = model.uiState.value.rawVolumeReg
+        transport.failCommand = 4
+        model.setVolume(60)
+        runCurrent()
+        assertFalse(model.uiState.value.isVolumePending)
+        assertEquals(previous, model.uiState.value.rawVolumeReg)
+        assertNotNull(model.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun balanceReadback_andDisconnectClearPendingControls() = runModelTest {
+        model.connectToDevice(device("dac"))
+        advanceTimeBy(300)
+        model.setBalance(3)
+        assertTrue(model.uiState.value.isBalancePending)
+        advanceTimeBy(200)
+        assertFalse(model.uiState.value.isBalancePending)
+        assertEquals(3, model.uiState.value.balanceBaseValue)
+        model.setVolume(20)
+        model.setBalance(-3)
+        runCurrent()
+        model.onDeviceDisconnected()
+        runCurrent()
+        assertFalse(model.uiState.value.isVolumePending)
+        assertFalse(model.uiState.value.isBalancePending)
+    }
+
     private fun runModelTest(block: suspend TestScope.() -> Unit) = runTest(dispatcher) {
         try {
             block()

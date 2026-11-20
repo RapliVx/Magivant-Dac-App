@@ -1,5 +1,10 @@
 package com.rapli.magivant.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,6 +30,7 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -232,6 +238,7 @@ fun MagivantPresetScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PresetActionHeader(
     uiState: DacUiState,
@@ -245,110 +252,121 @@ private fun PresetActionHeader(
     onExportCurrentClicked: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
+    val motion = MaterialTheme.motionScheme
     TonalCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (isSelectionMode) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "$selectedCount Selected",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = cs.onSurface
-                    )
-                    TextButton(onClick = onClearSelection) {
-                        Text("Cancel")
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onDeleteSelected,
-                        modifier = Modifier.weight(1f)
+        AnimatedContent(
+            targetState = if (isSelectionMode) selectedCount else 0,
+            contentKey = { it > 0 },
+            transitionSpec = {
+                (fadeIn(motion.fastEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()))
+                    .using(SizeTransform(sizeAnimationSpec = { _, _ -> motion.defaultSpatialSpec() }))
+            },
+            label = "presetSelectionToolbar"
+        ) { selectionCount ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (selectionCount > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                        Text(
+                            text = "$selectionCount Selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = cs.onSurface
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Delete")
+                        TextButton(onClick = onClearSelection) {
+                            Text("Cancel")
+                        }
                     }
-                    if (selectedCount == 1) {
-                        OutlinedButton(
-                            onClick = onExportSelected,
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onDeleteSelected,
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.FileUpload,
+                                imageVector = Icons.Filled.Delete,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Export JSON")
+                            Text("Delete")
+                        }
+                        if (selectionCount == 1) {
+                            OutlinedButton(
+                                onClick = onExportSelected,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.FileUpload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Export JSON")
+                            }
                         }
                     }
-                }
-            } else {
-                val currentDb = Cs43198Spec.formatDbFs(uiState.rawVolumeReg)
-                val currentGain = if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
-                Text(
-                    text = "Current Settings",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = cs.onSurface
-                )
-                Text(
-                    text = "Vol ${uiState.volumeIndex}/60 ($currentDb) • $currentGain • ${filterShortLabels.getOrElse(uiState.digitalFilterPos) { "Filter 0" }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant
-                )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onNewClicked,
-                        enabled = uiState.hasDeviceState
+                } else {
+                    val currentDb = Cs43198Spec.formatDbFs(uiState.rawVolumeReg)
+                    val currentGain = if (uiState.isHighGain) "High Gain (2Vrms)" else "Low Gain (1Vrms)"
+                    Text(
+                        text = "Current Settings",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = cs.onSurface
+                    )
+                    Text(
+                        text = "Vol ${uiState.volumeIndex}/60 ($currentDb) • $currentGain • ${filterShortLabels.getOrElse(uiState.digitalFilterPos) { "Filter 0" }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Preset", maxLines = 1, softWrap = false)
-                    }
-                    FilledTonalButton(
-                        onClick = onImportClicked
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FileDownload,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Import")
-                    }
-                    OutlinedButton(
-                        onClick = onExportCurrentClicked,
-                        enabled = uiState.hasDeviceState
-                    ) {
-                        Text("Export")
+                        Button(
+                            onClick = onNewClicked,
+                            enabled = uiState.hasDeviceState
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Save Preset", maxLines = 1, softWrap = false)
+                        }
+                        FilledTonalButton(
+                            onClick = onImportClicked
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import")
+                        }
+                        OutlinedButton(
+                            onClick = onExportCurrentClicked,
+                            enabled = uiState.hasDeviceState
+                        ) {
+                            Text("Export")
+                        }
                     }
                 }
             }

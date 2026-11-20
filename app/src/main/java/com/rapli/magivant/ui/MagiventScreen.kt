@@ -5,16 +5,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -59,6 +56,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.UsbOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -86,9 +84,14 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
@@ -106,6 +109,7 @@ import com.rapli.magivant.ui.components.MagivantTab
 import com.rapli.magivant.ui.components.NewPresetInputDialog
 import com.rapli.magivant.ui.components.TonalCard
 import com.rapli.magivant.ui.theme.AppSettings
+import com.rapli.magivant.ui.util.NavbarScrollState
 import com.rapli.magivant.usb.Cs43198Spec
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -138,7 +142,7 @@ private val ledModeDescriptions = listOf(
     "Keeps the indicator LED solid red"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MagivantScreen(
     viewModel: MagivantViewModel,
@@ -152,58 +156,41 @@ fun MagivantScreen(
     val state by viewModel.uiState.collectAsState()
     val presetList by viewModel.presets.collectAsState()
     val cs = MaterialTheme.colorScheme
+    val motion = MaterialTheme.motionScheme
+    val effectsSpec = motion.fastEffectsSpec<Float>()
+    val spatialOffsetSpec = motion.defaultSpatialSpec<IntOffset>()
+    val spatialSizeSpec = motion.defaultSpatialSpec<IntSize>()
+    val tabOffsetSpec = motion.slowSpatialSpec<IntOffset>()
+    val tabEffectsSpec = motion.slowEffectsSpec<Float>()
+    val density = LocalDensity.current
+    val tabOffset = with(density) { 16.dp.roundToPx() }
+    val layoutDirection = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
 
     var currentTab by rememberSaveable { mutableStateOf(MagivantTab.HOME) }
-    var isScrollingDown by remember { mutableStateOf(false) }
+    var isScrollingDown by remember(currentTab, appSettings.isFloatingNavbar, density.density) { mutableStateOf(false) }
     var showNewPresetDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(currentTab) {
-        isScrollingDown = false
+    var lastErrorMessage by remember { mutableStateOf(state.errorMessage) }
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let { lastErrorMessage = it }
     }
 
     BackHandler(enabled = currentTab != MagivantTab.HOME) {
         currentTab = MagivantTab.HOME
     }
 
-    val nestedScrollConnection = remember {
+    val scrollState = remember(currentTab, density.density, appSettings.isFloatingNavbar) {
+        with(density) { NavbarScrollState(showThreshold = 8.dp.toPx(), hideThreshold = 32.dp.toPx()) }
+    }
+    val nestedScrollConnection = remember(scrollState) {
         object : NestedScrollConnection {
-            var scrollAccumulator = 0f
-
-            override fun onPreScroll(
-                available: Offset,
-                source: NestedScrollSource
-            ): Offset {
-                if (available.y > 0f) {
-                    if (scrollAccumulator < 0f) {
-                        scrollAccumulator = 0f
-                    }
-                    scrollAccumulator = (scrollAccumulator + available.y).coerceIn(0f, 200f)
-                    if (scrollAccumulator > 20f) {
-                        isScrollingDown = false
-                        scrollAccumulator = 0f
-                    }
-                }
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 0f) isScrollingDown = scrollState.onScroll(available.y)
                 return Offset.Zero
             }
 
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource
-            ): Offset {
-                if (consumed.y < 0f) {
-                    if (scrollAccumulator > 0f) {
-                        scrollAccumulator = 0f
-                    }
-                    scrollAccumulator = (scrollAccumulator + consumed.y).coerceIn(-200f, 0f)
-                    if (scrollAccumulator < -80f) {
-                        isScrollingDown = true
-                        scrollAccumulator = 0f
-                    }
-                } else if (consumed.y > 0f || available.y > 0f) {
-                    isScrollingDown = false
-                    scrollAccumulator = 0f
-                }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (consumed.y < 0f) isScrollingDown = scrollState.onScroll(consumed.y)
                 return Offset.Zero
             }
         }
@@ -223,11 +210,10 @@ fun MagivantScreen(
         }
     )
 
-    if (state.isSyncing) {
-        ExpressiveLoadingDialog(
-            message = state.syncMessage.ifEmpty { "Syncing..." }
-        )
-    }
+    ExpressiveLoadingDialog(
+        visible = state.isSyncing,
+        message = state.syncMessage.ifEmpty { "Syncing..." }
+    )
 
     if (showNewPresetDialog) {
         NewPresetInputDialog(
@@ -300,41 +286,17 @@ fun MagivantScreen(
             )
         },
         bottomBar = {
-            if (!appSettings.isFloatingNavbar) {
-                AnimatedVisibility(
-                    visible = true,
-                    enter = slideInVertically(
-                        initialOffsetY = { it },
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    ) + expandVertically(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    ),
-                    exit = slideOutVertically(
-                        targetOffsetY = { it },
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    ) + shrinkVertically(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    )
-                ) {
-                    MagivantBottomBar(
-                        currentTab = currentTab,
-                        onTabSelected = { currentTab = it },
-                        isFloating = false,
-                        isFloatingGestureEnabled = appSettings.isFloatingNavbarGesture
-                    )
-                }
+            AnimatedVisibility(
+                visible = !appSettings.isFloatingNavbar,
+                enter = expandVertically(spatialSizeSpec, expandFrom = Alignment.Bottom) + fadeIn(effectsSpec),
+                exit = shrinkVertically(spatialSizeSpec, shrinkTowards = Alignment.Bottom) + fadeOut(effectsSpec)
+            ) {
+                MagivantBottomBar(
+                    currentTab = currentTab,
+                    onTabSelected = { currentTab = it },
+                    isFloating = false,
+                    isFloatingGestureEnabled = appSettings.isFloatingNavbarGesture
+                )
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing.only(
@@ -346,7 +308,11 @@ fun MagivantScreen(
                 .fillMaxSize()
                 .nestedScroll(nestedScrollConnection)
         ) {
-            val bottomPadding = if (appSettings.isFloatingNavbar) 96.dp else 16.dp
+            val bottomPadding by animateDpAsState(
+                targetValue = if (appSettings.isFloatingNavbar) 96.dp else 16.dp,
+                animationSpec = motion.defaultSpatialSpec(),
+                label = "navigationContentPadding"
+            )
 
             Column(
                 modifier = Modifier
@@ -355,10 +321,10 @@ fun MagivantScreen(
             ) {
                 AnimatedVisibility(
                     visible = state.errorMessage != null,
-                    enter = fadeIn() + slideInVertically(),
-                    exit = fadeOut() + slideOutVertically()
+                    enter = expandVertically(spatialSizeSpec) + fadeIn(effectsSpec),
+                    exit = shrinkVertically(spatialSizeSpec) + fadeOut(effectsSpec)
                 ) {
-                    state.errorMessage?.let { errMsg ->
+                    (state.errorMessage ?: lastErrorMessage)?.let { errMsg ->
                         ErrorStatusBanner(
                             message = errMsg,
                             isConnected = state.isConnected,
@@ -373,16 +339,9 @@ fun MagivantScreen(
                 AnimatedContent(
                     targetState = currentTab,
                     transitionSpec = {
-                        (fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
-                            scaleIn(
-                                initialScale = 0.92f,
-                                animationSpec = spring(dampingRatio = 0.8f, stiffness = 350f)
-                            )) togetherWith
-                            (fadeOut(animationSpec = tween(200)) +
-                                scaleOut(
-                                    targetScale = 0.96f,
-                                    animationSpec = tween(200)
-                                ))
+                        val direction = (if (targetState.ordinal > initialState.ordinal) 1 else -1) * layoutDirection
+                        (fadeIn(tabEffectsSpec) + slideInHorizontally(tabOffsetSpec) { direction * tabOffset }) togetherWith
+                            (fadeOut(effectsSpec) + slideOutHorizontally(tabOffsetSpec) { -direction * tabOffset })
                     },
                     label = "magivantTabContent",
                     modifier = Modifier.weight(1f)
@@ -478,20 +437,8 @@ fun MagivantScreen(
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 AnimatedVisibility(
                     visible = appSettings.isFloatingNavbar && !isScrollingDown,
-                    enter = slideInVertically(
-                        initialOffsetY = { it * 2 },
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessLow
-                        )
-                    ) + fadeIn(tween(400)),
-                    exit = slideOutVertically(
-                        targetOffsetY = { it * 2 },
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessLow
-                        )
-                    ) + fadeOut(tween(400))
+                    enter = slideInVertically(spatialOffsetSpec) { it } + fadeIn(effectsSpec),
+                    exit = slideOutVertically(spatialOffsetSpec) { it } + fadeOut(effectsSpec)
                 ) {
                     MagivantBottomBar(
                         currentTab = currentTab,
@@ -554,6 +501,7 @@ private fun ErrorStatusBanner(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MagivantHomeScreen(
     uiState: DacUiState,
@@ -589,7 +537,11 @@ private fun MagivantHomeScreen(
             onOpenPresetsTab = onOpenPresetsTab
         )
 
-        if (!uiState.isConnected) {
+        AnimatedVisibility(
+            visible = !uiState.isConnected,
+            enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
+            exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
+        ) {
             DisconnectedQuickCard(onScanUsb = onScanUsb)
         }
 
@@ -1084,6 +1036,7 @@ internal fun VolumeAndBalanceCard(
 
                     MagivantSlider(
                         value = uiState.volumeIndex.toFloat(),
+                        isPending = uiState.isVolumePending,
                         onValueChange = { onVolumeChanged(it.roundToInt()) },
                         steps = (uiState.maxVolumeIndex - 1).coerceAtLeast(0),
                         valueRange = 0f..uiState.maxVolumeIndex.toFloat(),
@@ -1174,6 +1127,7 @@ internal fun VolumeAndBalanceCard(
 
                     MagivantSlider(
                         value = uiState.balanceBaseValue.toFloat().coerceIn(-10f, 10f),
+                        isPending = uiState.isBalancePending,
                         onValueChange = { onBalanceChanged(it.roundToInt()) },
                         steps = 19,
                         valueRange = -10f..10f,
