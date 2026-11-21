@@ -68,7 +68,7 @@ jobs:
           echo "ORG_GRADLE_PROJECT_KEYSTORE_FILE=$RUNNER_TEMP/magivant-release.jks" >> "$GITHUB_ENV"
 
       - name: Verify Android tests and lint
-        run: ./gradlew testDebugUnitTest lintDebug --no-daemon --max-workers=1
+        run: ./.github/scripts/gradle-with-plugin-resolution-retry.sh testDebugUnitTest lintDebug --no-daemon --max-workers=1
 
       - name: Verify published release tag
         if: inputs.release && github.event_name == 'release'
@@ -160,7 +160,7 @@ jobs:
       - name: Build and test Linux packages
         run: |
           set -euo pipefail
-          ./gradlew \
+          ./.github/scripts/gradle-with-plugin-resolution-retry.sh \
             :shared:test \
             :desktopApp:test \
             :desktopApp:createDistributable \
