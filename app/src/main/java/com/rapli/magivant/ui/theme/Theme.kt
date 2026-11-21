@@ -12,6 +12,7 @@ import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -110,14 +111,14 @@ fun MAGIVANTDACTheme(
             )
         }
         else -> {
-            if (darkTheme) darkColorScheme() else expressiveLightColorScheme()
+            remember(darkTheme) { if (darkTheme) darkColorScheme() else expressiveLightColorScheme() }
         }
     }
 
     val motionScheme = MotionScheme.expressive()
     val animatedColorScheme = animateColorScheme(
         colorScheme = colorScheme,
-        animationSpec = { motionScheme.fastEffectsSpec() }
+        animationSpec = { motionScheme.slowEffectsSpec() }
     )
     val useDarkSystemIcons = animatedColorScheme.surface.luminance() > 0.5f
     LaunchedEffect(useDarkSystemIcons) {

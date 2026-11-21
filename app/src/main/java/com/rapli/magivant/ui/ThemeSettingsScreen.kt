@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -57,10 +58,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.expressiveLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +78,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -87,7 +85,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.materialkolor.rememberDynamicColorScheme
-import com.rapli.magivant.R
 import com.rapli.magivant.ui.components.ExpressiveDropdownItem
 import com.rapli.magivant.ui.components.ExpressiveList
 import com.rapli.magivant.ui.components.MagivantSlider
@@ -221,9 +218,6 @@ fun MagivantSettingsScreen(
             )
     ) {
         ThemePreviewCard(
-            keyColor = appSettings.keyColor,
-            isDark = isDark,
-            isAmoled = isAmoled,
             enableFloatingNav = appSettings.isFloatingNavbar,
             useClassicLayout = appSettings.isClassicBanner
         )
@@ -521,6 +515,12 @@ private fun ColorButton(
             isAmoled = isAmoled
         )
     }
+    val colorSpec = motion.slowEffectsSpec<Color>()
+    val surfaceContainer by animateColorAsState(colorScheme.surfaceContainer, colorSpec, label = "paletteSurface")
+    val primary by animateColorAsState(colorScheme.primary, colorSpec, label = "palettePrimary")
+    val onPrimary by animateColorAsState(colorScheme.onPrimary, colorSpec, label = "paletteOnPrimary")
+    val primaryContainer by animateColorAsState(colorScheme.primaryContainer, colorSpec, label = "palettePrimaryContainer")
+    val tertiaryContainer by animateColorAsState(colorScheme.tertiaryContainer, colorSpec, label = "paletteTertiaryContainer")
 
     val innerCornerRadius by animateDpAsState(
         targetValue = if (isSelected) 24.dp else 16.dp,
@@ -531,7 +531,7 @@ private fun ColorButton(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
-        color = colorScheme.surfaceContainer,
+        color = surfaceContainer,
         modifier = Modifier.size(72.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -541,12 +541,12 @@ private fun ColorButton(
                     .clip(RoundedCornerShape(innerCornerRadius))
             ) {
                 drawRect(
-                    color = colorScheme.primaryContainer,
+                    color = primaryContainer,
                     topLeft = Offset(0f, 0f),
                     size = Size(size.width, size.height / 2)
                 )
                 drawRect(
-                    color = colorScheme.tertiaryContainer,
+                    color = tertiaryContainer,
                     topLeft = Offset(0f, size.height / 2),
                     size = Size(size.width, size.height / 2)
                 )
@@ -572,20 +572,20 @@ private fun ColorButton(
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .border(2.dp, colorScheme.primary, CircleShape),
+                            .border(2.dp, primary, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(24.dp)
                                 .clip(CircleShape)
-                                .background(colorScheme.primary, CircleShape),
+                                .background(primary, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
                                 contentDescription = null,
-                                tint = colorScheme.onPrimary,
+                                tint = onPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -599,7 +599,7 @@ private fun ColorButton(
                     Box(
                         modifier = Modifier
                             .size(20.dp)
-                            .background(colorScheme.primary, CircleShape)
+                            .background(primary, CircleShape)
                     )
                 }
             }
@@ -610,33 +610,12 @@ private fun ColorButton(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ThemePreviewCard(
-    keyColor: Int,
-    isDark: Boolean,
-    isAmoled: Boolean,
     enableFloatingNav: Boolean,
     useClassicLayout: Boolean
 ) {
     val windowSize = LocalWindowInfo.current.containerSize
     val screenRatio = windowSize.width.coerceAtLeast(1).toFloat() / windowSize.height.coerceAtLeast(1)
-    val colorScheme = when {
-        keyColor == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            rememberDynamicColorScheme(
-                seedColor = colorResource(id = android.R.color.system_accent1_500),
-                isDark = isDark,
-                isAmoled = isAmoled
-            )
-        }
-        keyColor != 0 -> {
-            rememberDynamicColorScheme(
-                seedColor = Color(keyColor),
-                isDark = isDark,
-                isAmoled = isAmoled
-            )
-        }
-        else -> {
-            if (isDark) darkColorScheme() else expressiveLightColorScheme()
-        }
-    }
+    val colorScheme = MaterialTheme.colorScheme
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Surface(

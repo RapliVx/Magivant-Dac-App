@@ -1,7 +1,6 @@
 package com.rapli.magivant.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -64,6 +63,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onPlaced
@@ -233,26 +233,25 @@ fun MagivantBottomBar(
                         val isHovered = isGestureActive && hoveredIndex == index
                         val isActive = (!isGestureActive && isCurrent) || isHovered
 
-                        val animationSpec = tween<Color>(durationMillis = 300, easing = FastOutSlowInEasing)
+                        val animationSpec = tween<Float>(durationMillis = 300, easing = FastOutSlowInEasing)
 
-                        val bgColor by animateColorAsState(
-                            targetValue = if (!enableGesture && isActive) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                Color.Transparent
-                            },
+                        val backgroundProgress by animateFloatAsState(
+                            targetValue = if (!enableGesture && isActive) 1f else 0f,
                             animationSpec = animationSpec,
-                            label = "bgColor"
+                            label = "navigationBackgroundProgress"
                         )
 
-                        val contentColor by animateColorAsState(
-                            targetValue = if (isActive) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                        val contentProgress by animateFloatAsState(
+                            targetValue = if (isActive) 1f else 0f,
                             animationSpec = animationSpec,
-                            label = "contentColor"
+                            label = "navigationContentProgress"
+                        )
+                        // Animate selection while theme colors follow the shared transition directly.
+                        val bgColor = lerp(Color.Transparent, MaterialTheme.colorScheme.primaryContainer, backgroundProgress)
+                        val contentColor = lerp(
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            MaterialTheme.colorScheme.onPrimaryContainer,
+                            contentProgress
                         )
 
                         val interactionSource = remember { MutableInteractionSource() }

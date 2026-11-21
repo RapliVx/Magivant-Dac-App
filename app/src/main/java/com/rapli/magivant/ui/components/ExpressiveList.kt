@@ -1,6 +1,12 @@
 package com.rapli.magivant.ui.components
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -12,44 +18,63 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 private val largeCorner = 20.dp
@@ -291,6 +316,7 @@ fun ExpressiveSwitchItem(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ExpressiveDropdownItem(
     icon: ImageVector? = null,
@@ -303,67 +329,126 @@ fun ExpressiveDropdownItem(
     onItemSelected: (Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-
+    var anchorWidth by remember { mutableIntStateOf(0) }
+    val cs = MaterialTheme.colorScheme
+    val motion = MaterialTheme.motionScheme
+    val density = LocalDensity.current
+    val scrollState = rememberScrollState()
+    val selectedItemRequester = remember { BringIntoViewRequester() }
     val hasItems = items.isNotEmpty()
-    val safeIndex = if (hasItems) {
-        selectedIndex.coerceIn(0, items.lastIndex)
-    } else {
-        -1
+    val canOpen = enabled && hasItems
+    val isExpanded = expanded && canOpen
+    val selectedLabel = items.getOrNull(selectedIndex) ?: if (hasItems) "Choose an option" else "No options available"
+    val contentColor = if (canOpen) cs.onSurface else cs.onSurface.copy(alpha = 0.38f)
+    val supportingColor = if (canOpen) cs.onSurfaceVariant else cs.onSurface.copy(alpha = 0.38f)
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = motion.fastSpatialSpec(),
+        label = "dropdownChevron"
+    )
+    val menuWidth = with(density) { anchorWidth.toDp() }.coerceAtMost(360.dp)
+
+    LaunchedEffect(canOpen) {
+        if (!canOpen) expanded = false
     }
 
-    ExpressiveListItem(
-        modifier = if (enabled) {
-            Modifier.clickable { expanded = true }
-        } else {
-            Modifier
-        },
-        leadingContent = icon?.let {
-            {
-                Icon(
-                    imageVector = it,
-                    contentDescription = null
-                )
-            }
-        },
-        headlineContent = { Text(text = title) },
-        supportingContent = summary?.let { { Text(it) } },
-        trailingContent = {
-            Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
-                Text(
-                    text = if (hasItems && safeIndex >= 0) items[safeIndex] else "",
-                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    items.forEachIndexed { index, text ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(text)
-                                    val desc = itemDescriptions?.getOrNull(index)
-                                    if (desc != null) {
-                                        Text(
-                                            text = desc,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                    }
-                                }
-                            },
-                            onClick = {
-                                if (index in items.indices) {
-                                    onItemSelected(index)
-                                }
-                                expanded = false
-                            }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onSizeChanged { anchorWidth = it.width }
+    ) {
+        ExpressiveListItem(
+            modifier = Modifier
+                .clickable(enabled = canOpen, role = Role.Button) { expanded = !expanded }
+                .semantics { stateDescription = if (isExpanded) "Expanded" else "Collapsed" },
+            leadingContent = icon?.let {
+                { Icon(imageVector = it, contentDescription = null, tint = supportingColor) }
+            },
+            headlineContent = { Text(text = title, color = contentColor) },
+            supportingContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AnimatedContent(
+                        targetState = selectedLabel,
+                        transitionSpec = {
+                            (fadeIn(motion.fastEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()))
+                                .using(SizeTransform(sizeAnimationSpec = { _, _ -> motion.fastSpatialSpec() }))
+                        },
+                        label = "dropdownSelection"
+                    ) { label ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = if (canOpen) cs.primary else supportingColor,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    summary?.let { Text(text = it, color = supportingColor) }
+                }
+            },
+            trailingContent = {
+                Icon(
+                    imageVector = Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = supportingColor,
+                    modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
+                )
+            }
+        )
+
+        DropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.width(menuWidth).heightIn(max = 360.dp),
+            scrollState = scrollState,
+            shape = MenuDefaults.standaloneGroupShape,
+            containerColor = cs.surfaceContainerHigh,
+            tonalElevation = 0.dp,
+            shadowElevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                items.forEachIndexed { index, text ->
+                    val isSelected = index == selectedIndex
+                    if (isSelected) {
+                        LaunchedEffect(isExpanded, index) {
+                            if (isExpanded) {
+                                withFrameNanos { }
+                                selectedItemRequester.bringIntoView()
+                            }
+                        }
+                    }
+                    SelectableDropdownMenuItem(
+                        selected = isSelected,
+                        onClick = {
+                            expanded = false
+                            if (canOpen && index in items.indices && index != selectedIndex) onItemSelected(index)
+                        },
+                        text = { Text(text) },
+                        shapes = MenuDefaults.itemShape(index, items.size),
+                        modifier = if (isSelected) Modifier.bringIntoViewRequester(selectedItemRequester) else Modifier,
+                        enabled = canOpen,
+                        leadingIcon = { Spacer(Modifier.size(MenuDefaults.LeadingIconSize)) },
+                        selectedLeadingIcon = {
+                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(MenuDefaults.LeadingIconSize))
+                        },
+                        supportingText = itemDescriptions?.getOrNull(index)?.let { description ->
+                            { Text(description) }
+                        },
+                        colors = MenuDefaults.selectableItemColors(
+                            containerColor = Color.Transparent,
+                            selectedContainerColor = cs.secondaryContainer,
+                            selectedTextColor = cs.onSecondaryContainer,
+                            selectedLeadingIconColor = cs.onSecondaryContainer
+                        )
+                    )
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
