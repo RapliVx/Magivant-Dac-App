@@ -38,8 +38,8 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm)
             packageName = "magivant-dac"
-            packageVersion = "3.6.0"
-            description = "Expressive control panel for Magivant USB DAC"
+            packageVersion = "3.7.0"
+            description = "Magivant DAC 3.7-Dekstop-Expressive"
             linux {
                 appCategory = "AudioVideo"
                 iconFile.set(project.file("src/main/resources/magivant-dac.png"))

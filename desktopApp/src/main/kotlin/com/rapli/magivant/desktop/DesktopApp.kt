@@ -210,7 +210,7 @@ private fun NavigationPanel(page: DesktopPage, compact: Boolean, onPageSelected:
 
             Spacer(Modifier.weight(1f))
             if (!compact) {
-                Text("3.6-Expressive", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
+            Text("3.7-Dekstop-Expressive", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
             }
         }
     }

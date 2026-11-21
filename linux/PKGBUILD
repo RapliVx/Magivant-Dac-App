@@ -1,5 +1,5 @@
 pkgname=magivant-dac
-pkgver=3.6.0
+pkgver=3.7.0
 pkgrel=1
 pkgdesc='Expressive desktop control panel for Leteciel Magivant USB DAC'
 arch=('x86_64' 'aarch64')
