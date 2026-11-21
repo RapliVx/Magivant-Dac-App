@@ -8,8 +8,12 @@ lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
 gson = "2.15.0"
 kotlin = "2.4.21"
+composeMultiplatform = "1.13.0-beta02"
+composeMaterial3Desktop = "1.9.0"
+composeMaterialIconsDesktop = "1.7.3"
 composeBom = "2026.09.00"
 composeMaterial3 = "1.5.0-beta02"
+usb4java = "1.3.0"
 materialKolor = "5.0.1"
 coil = "2.7.0"
 ucrop = "2.2.11"
@@ -22,6 +26,8 @@ robolectric = "4.17"
 
 [libraries]
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version.ref = "coroutines" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -47,9 +53,17 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coil" }
 ucrop = { group = "com.github.yalantis", name = "ucrop", version.ref = "ucrop" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+usb4java = { group = "org.usb4java", name = "usb4java", version.ref = "usb4java" }
+compose-ui = { group = "org.jetbrains.compose.ui", name = "ui", version.ref = "composeMultiplatform" }
+compose-foundation = { group = "org.jetbrains.compose.foundation", name = "foundation", version.ref = "composeMultiplatform" }
+compose-material = { group = "org.jetbrains.compose.material", name = "material", version.ref = "composeMultiplatform" }
+compose-material3-desktop = { group = "org.jetbrains.compose.material3", name = "material3", version.ref = "composeMaterial3Desktop" }
+compose-material-icons-extended-desktop = { group = "org.jetbrains.compose.material", name = "material-icons-extended", version.ref = "composeMaterialIconsDesktop" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 lsplugin-apksign = { id = "org.lsposed.lsplugin.apksign", version.ref = "apksign" }
 

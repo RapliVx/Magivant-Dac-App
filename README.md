@@ -35,6 +35,13 @@ Here is the breakdown of the application flow:
   - *Non over-sampling (NOS)*
 - **LED Configuration**: Customize the DAC's indicator light behavior (*On, Off, Off & Save*).
 - **Dynamic Theming (Monet)**: The app interface and *Adaptive Icon* automatically adapt their colors to match your Android system wallpaper.
+- **Linux Desktop**: A separate desktop dashboard is available for Arch Linux and other Linux distributions, with a resizable layout, USB controls, presets, and udev-based device permissions.
+
+### Linux desktop
+
+The Linux application is built as a separate desktop app, while sharing the DAC settings and preset format with Android. Its desktop layout uses a navigation sidebar and wider control cards; audio playback remains with the Linux system audio stack.
+
+See [linux/README.md](linux/README.md) for JDK 21 build instructions, Debian/RPM packaging, the Arch Linux PKGBUILD, supported CPU architectures (`x86_64` and `AArch64`), and USB permission setup. To launch from the repository, run `./gradlew :desktopApp:run`.
 
 
 # Magivant JSON Preset Specification

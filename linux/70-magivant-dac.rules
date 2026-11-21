@@ -1,0 +1,2 @@
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2fc6", ATTR{idProduct}=="f13a", TAG+="uaccess"
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2fc6", ATTR{idProduct}=="f13b", TAG+="uaccess"

@@ -25,4 +25,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "MAGIVANT DAC"
 include(":app")
- 
+include(":shared")
+include(":desktopApp")
