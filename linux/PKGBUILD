@@ -1,6 +1,6 @@
 pkgname=magivant-dac
 pkgver=3.7.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Expressive desktop control panel for Leteciel Magivant USB DAC'
 arch=('x86_64' 'aarch64')
 url='https://github.com/RapliVx/Magivant-Dac-App'
@@ -10,19 +10,19 @@ makedepends=('git' 'jdk21-openjdk')
 source=("git+https://github.com/RapliVx/Magivant-Dac-App.git#branch=master")
 sha256sums=('SKIP')
 
-_source_dir="$srcdir/Magivant-Dac-App"
-_app_image="$_source_dir/desktopApp/build/compose/binaries/main/app/magivant-dac"
-
 build() {
+    local source_dir="$srcdir/Magivant-Dac-App"
     export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
     export PATH="$JAVA_HOME/bin:$PATH"
-    cd "$_source_dir"
+    cd "$source_dir"
     ./gradlew --no-daemon --max-workers=1 :desktopApp:createDistributable
 }
 
 package() {
+    local source_dir="$srcdir/Magivant-Dac-App"
+    local app_image="$source_dir/desktopApp/build/compose/binaries/main/app/magivant-dac"
     install -dm755 "$pkgdir/opt/magivant-dac"
-    cp -a "$_app_image/." "$pkgdir/opt/magivant-dac/"
+    cp -a "$app_image/." "$pkgdir/opt/magivant-dac/"
 
     install -dm755 "$pkgdir/usr/bin"
     cat > "$pkgdir/usr/bin/magivant-dac" <<'LAUNCHER'
@@ -31,9 +31,9 @@ exec /opt/magivant-dac/bin/magivant-dac "$@"
 LAUNCHER
     chmod 755 "$pkgdir/usr/bin/magivant-dac"
 
-    install -Dm644 "$_source_dir/linux/70-magivant-dac.rules" \
+    install -Dm644 "$source_dir/linux/70-magivant-dac.rules" \
         "$pkgdir/usr/lib/udev/rules.d/70-magivant-dac.rules"
-    install -Dm644 "$_app_image/lib/magivant-dac.png" \
+    install -Dm644 "$app_image/lib/magivant-dac.png" \
         "$pkgdir/usr/share/pixmaps/magivant-dac.png"
     install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/magivant-dac.desktop" <<'DESKTOP'
 [Desktop Entry]
