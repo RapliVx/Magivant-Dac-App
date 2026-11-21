@@ -19,12 +19,10 @@ permissions:
 
 jobs:
   build-android:
-    name: Build, Sign & Release APK
+    name: Build Android APK
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
-    needs: build-linux
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.rename_apk.outputs.version_name }}
 
     steps:
       - name: Checkout Repository
@@ -72,6 +70,19 @@ jobs:
       - name: Verify tests and lint
         run: ./gradlew testDebugUnitTest lintDebug --no-daemon --max-workers=1
 
+      - name: Build Debug APK
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        run: ./gradlew assembleDebug --no-daemon --max-workers=1
+
+      - name: Upload Debug APK artifact
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Magivant-DAC-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Verify published release tag
         if: github.event_name == 'release'
         run: |
@@ -110,6 +121,7 @@ jobs:
           
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
           echo "APK_FILE=$NEW_APK_NAME" >> $GITHUB_ENV
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK to Artifacts
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
@@ -117,45 +129,6 @@ jobs:
         with:
           name: ${{ env.APK_FILE }}
           path: ${{ env.APK_FILE }}
-
-      - name: Download Linux packages
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: Magivant-DAC-Linux-*
-          path: linux-artifacts
-          merge-multiple: true
-
-      - name: Publish to GitHub Releases
-        if: github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION_NAME }}
-          name: Magivant DAC v${{ env.VERSION_NAME }}
-          body: |
-            Automated Android and Linux build for **Magivant DAC v${{ env.VERSION_NAME }}**.
-
-            **Linux downloads:** x86_64 and ARM64 app images, Debian and RPM packages for both architectures, plus the udev permission helper. Install the included udev rule and reconnect the DAC before using the hardware controls.
-
-            **Android installation:** Download the `.apk` file below, install it, then connect your Leteciel DAC and grant USB access.
-          files: |
-            ${{ env.APK_FILE }}
-            linux-artifacts/*
-          fail_on_unmatched_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Android and Linux assets to published release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: |
-            ${{ env.APK_FILE }}
-            linux-artifacts/*
-          fail_on_unmatched_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux:
     name: Build Linux (${{ matrix.arch }})
@@ -233,3 +206,54 @@ jobs:
           path: ${{ runner.temp }}/magivant-linux-artifacts/*
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    name: Publish Android and Linux release
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
+    needs:
+      - build-android
+      - build-linux
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Magivant-DAC-${{ needs.build-android.outputs.version }}.apk
+          path: release-assets
+
+      - name: Download Linux packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Magivant-DAC-Linux-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release with Android and Linux assets
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build-android.outputs.version }}
+          name: Magivant DAC v${{ needs.build-android.outputs.version }}
+          body: |
+            Automated Android and Linux build for **Magivant DAC v${{ needs.build-android.outputs.version }}**.
+
+            **Linux downloads:** x86_64 and ARM64 app images, Debian and RPM packages for both architectures, plus the udev permission helper. Install the included udev rule and reconnect the DAC before using the hardware controls.
+
+            **Android installation:** Download the `.apk` file below, install it, then connect your Leteciel DAC and grant USB access.
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets to published GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
