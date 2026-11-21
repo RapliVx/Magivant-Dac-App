@@ -1,0 +1,202 @@
+name: Build platforms
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: Build a signed release APK instead of a debug APK.
+        required: true
+        type: boolean
+    outputs:
+      android-version:
+        description: Android version name used for release tagging.
+        value: ${{ jobs.android.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android (${{ inputs.release && 'release' || 'debug' }})
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.android_version.outputs.value }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Set up Android SDK Platform 37
+        run: |
+          set -euo pipefail
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ] && [ ! -d "$ANDROID_HOME/platforms/android-37.0" ]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0"
+          fi
+          test -d "$ANDROID_HOME/platforms/android-37" || test -d "$ANDROID_HOME/platforms/android-37.0"
+
+      - name: Read Android version
+        id: android_version
+        run: |
+          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          test -n "$VERSION_NAME"
+          echo "value=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release signing
+        if: inputs.release
+        env:
+          KEYSTORE_CONTENT: ${{ secrets.KEYSTORE || secrets.KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${KEYSTORE_CONTENT:?Missing release keystore}"
+          : "${SIGNING_STORE_PASSWORD:?Missing keystore password}"
+          : "${SIGNING_KEY_ALIAS:?Missing key alias}"
+          : "${SIGNING_KEY_PASSWORD:?Missing key password}"
+          umask 077
+          printf '%s' "$KEYSTORE_CONTENT" | base64 --decode > "$RUNNER_TEMP/magivant-release.jks"
+          echo "ORG_GRADLE_PROJECT_KEYSTORE_FILE=$RUNNER_TEMP/magivant-release.jks" >> "$GITHUB_ENV"
+
+      - name: Verify Android tests and lint
+        run: ./gradlew testDebugUnitTest lintDebug --no-daemon --max-workers=1
+
+      - name: Verify published release tag
+        if: inputs.release && github.event_name == 'release'
+        env:
+          ANDROID_VERSION: ${{ steps.android_version.outputs.value }}
+        run: |
+          set -euo pipefail
+          EXPECTED_TAG="v$ANDROID_VERSION"
+          if [[ "$GITHUB_REF_NAME" != "$EXPECTED_TAG" ]]; then
+            echo "Release tag '$GITHUB_REF_NAME' does not match expected tag '$EXPECTED_TAG'." >&2
+            exit 1
+          fi
+
+      - name: Build Android APK
+        env:
+          RELEASE_BUILD: ${{ inputs.release }}
+          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_BUILD" == "true" ]]; then
+            ./gradlew assembleRelease --parallel --build-cache --no-daemon
+          else
+            ./gradlew assembleDebug --no-daemon --max-workers=1
+          fi
+
+      - name: Prepare APK artifact
+        id: apk_artifact
+        env:
+          RELEASE_BUILD: ${{ inputs.release }}
+          ANDROID_VERSION: ${{ steps.android_version.outputs.value }}
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_BUILD" == "true" ]]; then
+            APK_PATH="app/build/outputs/apk/release/app-release.apk"
+            APK_NAME="Magivant-DAC-$ANDROID_VERSION.apk"
+          else
+            APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+            APK_NAME="Magivant-DAC-debug-$GITHUB_SHA.apk"
+          fi
+          test -f "$APK_PATH"
+          mkdir -p "$RUNNER_TEMP/magivant-android-artifact"
+          cp "$APK_PATH" "$RUNNER_TEMP/magivant-android-artifact/$APK_NAME"
+          echo "name=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: ${{ runner.temp }}/magivant-android-artifact/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/magivant-release.jks"
+
+  linux:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Install Debian and RPM packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fakeroot dpkg-dev rpm
+
+      - name: Build and test Linux packages
+        run: |
+          set -euo pipefail
+          ./gradlew \
+            :shared:test \
+            :desktopApp:test \
+            :desktopApp:createDistributable \
+            :desktopApp:packageDeb \
+            :desktopApp:packageRpm \
+            --no-daemon --max-workers=1
+
+      - name: Prepare Linux artifacts
+        id: linux_artifacts
+        env:
+          LINUX_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/.*packageVersion = "\([^"]*\)".*/\1/p' desktopApp/build.gradle.kts)
+          test -n "$VERSION"
+
+          ARTIFACT_DIR="$RUNNER_TEMP/magivant-linux-artifacts"
+          APP_IMAGE="desktopApp/build/compose/binaries/main/app/magivant-dac"
+          mkdir -p "$ARTIFACT_DIR"
+          tar -C "$(dirname "$APP_IMAGE")" -czf "$ARTIFACT_DIR/Magivant-DAC-Linux-$LINUX_ARCH-$VERSION.tar.gz" magivant-dac
+          tar -C linux -czf "$ARTIFACT_DIR/Magivant-DAC-Linux-$LINUX_ARCH-USB-access.tar.gz" README.md 70-magivant-dac.rules install-udev-rule.sh
+
+          mapfile -t DEB_PACKAGES < <(find desktopApp/build/compose/binaries/main -type f -name '*.deb')
+          test "${#DEB_PACKAGES[@]}" -eq 1
+          cp "${DEB_PACKAGES[0]}" "$ARTIFACT_DIR/"
+
+          mapfile -t RPM_PACKAGES < <(find desktopApp/build/compose/binaries/main -type f -name '*.rpm')
+          test "${#RPM_PACKAGES[@]}" -eq 1
+          cp "${RPM_PACKAGES[0]}" "$ARTIFACT_DIR/"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: ${{ runner.temp }}/magivant-linux-artifacts/*
+          if-no-files-found: error
+          retention-days: 30

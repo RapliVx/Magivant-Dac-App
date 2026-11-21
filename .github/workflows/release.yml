@@ -1,0 +1,67 @@
+name: Release Android and Linux
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  build-platforms:
+    name: Build release packages
+    uses: ./.github/workflows/build-platforms.yml
+    with:
+      release: true
+    secrets: inherit
+
+  publish:
+    name: Publish Android and Linux assets
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
+    needs: build-platforms
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: release-assets
+
+      - name: Download Linux packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: linux-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release with Android and Linux assets
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build-platforms.outputs.android-version }}
+          name: Magivant DAC v${{ needs.build-platforms.outputs.android-version }}
+          body: |
+            Automated Android and Linux build for **Magivant DAC v${{ needs.build-platforms.outputs.android-version }}**.
+
+            **Linux downloads:** x86_64 and ARM64 app images, Debian and RPM packages for both architectures, plus the udev permission helper. Install the included udev rule and reconnect the DAC before using the hardware controls.
+
+            **Android installation:** Download the `.apk` file below, install it, then connect your Leteciel DAC and grant USB access.
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets to published GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
